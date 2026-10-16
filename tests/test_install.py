@@ -4,6 +4,7 @@ the installer's way to close a running app, and the installed program's own name
 
 import http.server
 import json
+import os
 import shutil
 import sys
 import threading
@@ -221,13 +222,41 @@ def test_quit_with_no_app_running_returns_at_once(monkeypatch, tmp_path):
     assert launch.quit_app(timeout=2) == 0
 
 
+def test_quit_tells_the_installer_the_app_was_running_even_when_its_reply_is_lost(monkeypatch, tmp_path):
+    """An app asked to quit may close before its reply arrives (found updating in Windows Sandbox): the startup lock
+    it held, not the reply, says it was running, so an update starts it again."""
+    import subprocess
+
+    monkeypatch.setenv("DOWSE_HOME", str(tmp_path))
+    go = tmp_path / "go"
+    app = subprocess.Popen([sys.executable, "-c", (
+        "import pathlib, sys, time; from dowse.desktop.launch import StartupLock; lock = StartupLock();"
+        "assert lock.acquire(); print('held', flush=True); go = pathlib.Path(sys.argv[1])\n"
+        "while not go.exists(): time.sleep(0.05)"), str(go)],
+        stdout=subprocess.PIPE, text=True, env={**os.environ, "DOWSE_HOME": str(tmp_path)})
+    try:
+        assert app.stdout.readline().strip() == "held"
+
+        def quits_without_answering(request):
+            go.write_text("")   # the app goes…
+            return False        # …and its answer never comes
+        monkeypatch.setattr(launch, "send", quits_without_answering)
+        assert launch.quit_app(timeout=10) == launch.QUIT_WAS_RUNNING
+    finally:
+        go.write_text("")
+        app.wait(10)
+
+
 def test_the_installed_app_starts_itself_with_dowse_exe(monkeypatch, tmp_path):
     (tmp_path / "python.exe").write_bytes(b"")
     monkeypatch.setattr(sys, "executable", str(tmp_path / "python.exe"))
     monkeypatch.setattr(sys, "argv", [str(tmp_path / "Lib" / "dowse" / "desktop" / "launch.py")])
     (tmp_path / "pythonw.exe").write_bytes(b"")
     assert winapi.launcher() == (str(tmp_path / "pythonw.exe"), ["-m", "dowse.desktop.launch"])
+    # A venv's dowse.exe is the command line (Windows' names ignore case): not the app's Dowse.exe
     (tmp_path / "Dowse.exe").write_bytes(b"")
+    assert winapi.launcher() == (str(tmp_path / "pythonw.exe"), ["-m", "dowse.desktop.launch"])
+    (tmp_path / "python312._pth").write_text("python312.zip\n.\n")   # the embeddable Python the installer ships
     assert winapi.launcher() == (str(tmp_path / "Dowse.exe"), ["-m", "dowse.desktop.launch"])
 
 

@@ -1,0 +1,78 @@
+# On a clean Windows runner: the tests, the installer built from source, then the installer itself tested the way a
+# person meets it (packaging/sandbox/test.ps1): installed silently, set up (the model and the runtime for this PC,
+# downloaded), a small library indexed and searched, the app started, updated while it runs, an install interrupted
+# and repaired, and uninstalled. The installer, its logs and the app's are kept as artifacts.
+name: Windows
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: windows-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test-and-install:
+    runs-on: windows-latest
+    timeout-minutes: 60
+    env:
+      PYTHONUTF8: "1"
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: "3.12"   # the installer ships Python 3.12: its libraries must be built for it
+          enable-cache: true
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - name: The interface
+        working-directory: web
+        run: |
+          npm ci
+          npm run check
+          npm test
+          npm run build
+
+      - name: The tests (without a model server)
+        run: |
+          uv sync
+          uv run pytest -q -m "not server"
+
+      - name: Cache the installer's downloads (embeddable Python, Inno Setup, WebView2's bootstrapper)
+        uses: actions/cache@v4
+        with:
+          path: build/cache
+          key: installer-downloads-${{ hashFiles('scripts/build_installer.py') }}
+
+      - name: The installer
+        run: uv run python scripts/build_installer.py
+
+      - name: The installer, tested
+        shell: pwsh
+        run: |
+          $setup = Get-ChildItem dist -Filter "Dowse-Setup-*.exe" | Select-Object -First 1
+          powershell.exe -ExecutionPolicy Bypass -File packaging/sandbox/test.ps1 -Run ci -Setup $setup.FullName -Out build/install-test
+          exit $LASTEXITCODE
+
+      - name: Results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: install-test
+          path: build/install-test
+
+      - name: Installer
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: Dowse-Setup
+          path: dist/Dowse-Setup-*.exe

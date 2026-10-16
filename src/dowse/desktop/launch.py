@@ -122,15 +122,19 @@ def quit_app(timeout: float = 30) -> int:
     """Asks the running app to quit and waits for it to let go of the startup lock (its files then free to be
     replaced). Exit code for the installer: 0 when no app was running, `QUIT_WAS_RUNNING` when it was and has quit
     (an update starts it again), 1 if it's still there after `timeout` seconds."""
-    asked = send({"op": "quit"})
     lock = StartupLock()
+    if lock.acquire():   # nothing holds it: no app is running (whatever app.json says)
+        lock.handle.close()
+        return 0
+    # An app is running. Its answer isn't what tells: it may quit before the reply reaches us. The lock does.
+    send({"op": "quit"})
     deadline = time.monotonic() + timeout
     while not lock.acquire():
         if time.monotonic() > deadline:
             return 1
         time.sleep(0.2)
     lock.handle.close()
-    return QUIT_WAS_RUNNING if asked else 0
+    return QUIT_WAS_RUNNING
 
 
 def main(argv: list[str] | None = None) -> int:

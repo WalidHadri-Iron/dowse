@@ -84,7 +84,9 @@ def launcher() -> tuple[str, list[str]]:
     """How to start this app again, as (program, arguments): the installed app's Dowse.exe; a launcher it was started
     by (`dowse-app.exe` in a development venv); else pythonw (no console window) with the module."""
     folder = os.path.dirname(sys.executable)
-    if os.path.exists(os.path.join(folder, APP_EXE)):
+    # The installed app: Dowse.exe beside the embeddable Python, which its ._pth file marks (a venv's dowse.exe is the
+    # command line, and Windows' names ignore case)
+    if os.path.exists(os.path.join(folder, APP_EXE)) and any(n.endswith("._pth") for n in os.listdir(folder)):
         return os.path.join(folder, APP_EXE), ["-m", "dowse.desktop.launch"]
     if sys.argv and sys.argv[0].lower().endswith(".exe"):
         return os.path.abspath(sys.argv[0]), []
