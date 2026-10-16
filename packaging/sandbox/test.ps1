@@ -40,7 +40,9 @@ function Screenshot([string]$Name) {
 }
 
 function Install([string]$Log) {
-    $p = Start-Process $Setup "/VERYSILENT /SUPPRESSMSGBOXES /NORESTART /LOG=`"$(Join-Path $Out $Log)`"" -Wait -PassThru
+    # The installer alone: Start-Process -Wait would also wait for the app an update starts again (it never exits)
+    $p = Start-Process $Setup "/VERYSILENT /SUPPRESSMSGBOXES /NORESTART /LOG=`"$(Join-Path $Out $Log)`"" -PassThru
+    $p.WaitForExit()
     return $p.ExitCode
 }
 
@@ -145,7 +147,7 @@ Step "update while it runs (silent)" {
 }
 
 Step "an interrupted install, then repaired" {
-    Start-Process (Join-Path $App "python.exe") "-m dowse.desktop.launch --quit" -Wait -WindowStyle Hidden
+    (Start-Process (Join-Path $App "python.exe") "-m dowse.desktop.launch --quit" -PassThru -WindowStyle Hidden).WaitForExit()
     $p = Start-Process $Setup "/VERYSILENT /SUPPRESSMSGBOXES /NORESTART /LOG=`"$(Join-Path $Out 'interrupted.log')`"" -PassThru
     Start-Sleep -Seconds 4
     Get-Process | Where-Object { $_.Path -like "$env:TEMP\is-*" -or $_.Id -eq $p.Id } | Stop-Process -Force
@@ -162,7 +164,7 @@ Step "uninstall (silent)" {
     Start-Process (Join-Path $App "Dowse.exe") "-m dowse.desktop.launch --background"
     $null = WaitFor { $null -ne (AppJson) -and (Running) } 60
     $uninstaller = Get-ChildItem $App -Filter "unins*.exe" | Select-Object -First 1
-    Start-Process $uninstaller.FullName "/VERYSILENT /SUPPRESSMSGBOXES /NORESTART /LOG=`"$(Join-Path $Out 'uninstall.log')`"" -Wait
+    (Start-Process $uninstaller.FullName "/VERYSILENT /SUPPRESSMSGBOXES /NORESTART /LOG=`"$(Join-Path $Out 'uninstall.log')`"" -PassThru).WaitForExit()
     Check (WaitFor { -not (Test-Path $App) } 120) "$App is still there"
     Check (-not (Running)) "Dowse is still running"
     Check (-not (Test-Path (Join-Path $env:APPDATA "Microsoft\Windows\Start Menu\Programs\Dowse.lnk"))) "the shortcut is still there"
