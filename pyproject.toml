@@ -1,0 +1,48 @@
+[project]
+name = "dowse"
+version = "0.1.0"
+description = "Search the files on your PC by what's in them: EmbeddingGemma 2 on llama.cpp, GPU or CPU."
+readme = "README.md"
+requires-python = ">=3.12,<3.14"
+license = "MIT"
+dependencies = [
+    "numpy>=2.1",
+    "pillow>=11.0",
+    "pillow-heif>=0.21",
+    "pypdfium2>=4.30",
+    "httpx>=0.28",
+    "av>=14.0",          # FFmpeg (bundled): audio and video
+    "pywebview>=5.4",            # the app's windows: Windows' own Edge WebView2, no browser bundled
+    "pystray>=0.19",             # the tray icon
+    # Windows' own OCR (Windows.Media.Ocr): offline, fast, the languages installed in Windows.
+    "winrt-runtime>=3.1; sys_platform == 'win32'",
+    "winrt-Windows.Foundation>=3.1; sys_platform == 'win32'",
+    "winrt-Windows.Foundation.Collections>=3.1; sys_platform == 'win32'",
+    "winrt-Windows.Globalization>=3.1; sys_platform == 'win32'",
+    "winrt-Windows.Graphics.Imaging>=3.1; sys_platform == 'win32'",
+    "winrt-Windows.Media.Ocr>=3.1; sys_platform == 'win32'",
+    "winrt-Windows.Storage.Streams>=3.1; sys_platform == 'win32'",
+]
+
+[project.scripts]
+dowse = "dowse.cli:main"
+
+[project.gui-scripts]
+dowse-app = "dowse.desktop.launch:main"
+
+[dependency-groups]
+dev = ["pytest>=8.3", "fpdf2>=2.8", "python-docx>=1.1"]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build]
+artifacts = ["src/dowse/desktop/static"]   # the built interface (web/: npm run build), ignored by git
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+markers = ["server: needs the model files and a llama.cpp runtime (dowse setup)"]
+
+[tool.ruff]
+line-length = 120

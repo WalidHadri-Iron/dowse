@@ -1,0 +1,130 @@
+/* The Open Storehouse: a museum's visible storage. Pale concrete floor, slate rack steel carrying the navigation,
+   glass vitrines holding each file, aluminium accession tags; teal marks what's found, indigo marks focus.
+   Daylight in Windows' light theme; the storehouse at night (lit vitrines in a dark hall) in the dark theme. */
+
+@import "@fontsource-variable/archivo/wdth.css";
+@import "@fontsource/martian-mono/400.css";
+@import "@fontsource/martian-mono/500.css";
+
+:root {
+  /* Ground and steel */
+  --floor: #e4e9e7;
+  --floor-raised: #edf1ef;
+  --floor-sunk: #d6dedb;
+  --hairline: #c3ccc9;
+  --steel: #1d3335;
+  --steel-raised: #284446;
+  --steel-line: #3b5a5d;
+  --steel-ink: #e8efed;
+  --steel-ink-2: #b9cbc8;
+
+  /* Ink */
+  --ink: #141821;
+  --ink-2: #3a4848;
+  --ink-3: #566664;
+
+  /* Glass, tags, the viewing table */
+  --glass: rgba(236, 246, 244, 0.5);
+  --glass-edge: rgba(255, 255, 255, 0.92);
+  --glass-shade: rgba(29, 51, 53, 0.16);
+  --tag: #d7dddb;
+  --tag-ink: #141821;
+  --tag-found: #08635b;   /* the found teal, dark enough to read on aluminium (5:1) */
+  --table: #f4f6f5;
+  --paper: #ffffff;
+
+  /* Signals */
+  --found: #12b5a6;
+  --found-ink: #0a776d;
+  --found-wash: rgba(18, 181, 166, 0.14);
+  --focus: #2a3fbf;
+  --focus-wash: rgba(42, 63, 191, 0.12);
+  --warn: #b4361c;
+  /* Search relevance: green finds, muted red context (not an error or deletion). */
+  --search-match: #209446;
+  --search-match-ink: #14662f;
+  --search-other: #b86660;
+  --search-other-ink: #93443f;
+  --mark: rgba(255, 214, 10, 0.55);
+
+  /* Depth: offset, soft, tinted from the steel */
+  --lift-1: 0 1px 2px rgba(29, 51, 53, 0.14), 0 2px 6px rgba(29, 51, 53, 0.08);
+  --lift-2: 0 6px 16px rgba(29, 51, 53, 0.14), 0 2px 4px rgba(29, 51, 53, 0.1);
+  --lift-3: 0 18px 40px rgba(29, 51, 53, 0.22), 0 4px 10px rgba(29, 51, 53, 0.12);
+
+  /* Type */
+  --face-sign: "Archivo Variable", "Segoe UI Variable Display", "Segoe UI", sans-serif;
+  --face-ui: "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif;
+  --face-ui-display: "Segoe UI Variable Display", "Segoe UI", system-ui, sans-serif;
+  --face-data: "Martian Mono", "Cascadia Mono", Consolas, monospace;
+
+  --text-xs: 0.75rem;   /* 12: tags, captions */
+  --text-sm: 0.8125rem; /* 13 */
+  --text-md: 0.9375rem; /* 15: body */
+  --text-lg: 1.125rem;  /* 18 */
+  --text-xl: 1.5rem;    /* 24 */
+  --text-2xl: 2rem;     /* 32: the query */
+  --text-3xl: 2.75rem;  /* 44 */
+
+  /* Space: one rhythm, multiples of 4 */
+  --s-1: 4px; --s-2: 8px; --s-3: 12px; --s-4: 16px; --s-5: 24px; --s-6: 32px; --s-7: 48px; --s-8: 64px;
+
+  /* Shape */
+  --r-steel: 3px;    /* plates and tags: cut metal */
+  --r-glass: 14px;   /* vitrines */
+  --r-field: 6px;
+
+  /* Motion: steel moves on rails (short, decisive); glass glides (eased, light sliding across it) */
+  --rail: cubic-bezier(0.2, 0, 0, 1);
+  --glide: cubic-bezier(0.16, 1, 0.3, 1);
+  --t-rail: 140ms;
+  --t-glide: 420ms;
+
+  color-scheme: light;
+}
+
+:root[data-theme="dark"] {
+  --floor: #0f1819;
+  --floor-raised: #152224;
+  --floor-sunk: #0a1112;
+  --hairline: #26393b;
+  --steel: #0a1314;
+  --steel-raised: #16272a;
+  --steel-line: #2a4245;
+  --steel-ink: #e3ecea;
+  --steel-ink-2: #a9bdba;
+
+  --ink: #e6eeec;
+  --ink-2: #b4c5c2;
+  --ink-3: #8ea3a0;
+
+  --glass: rgba(150, 196, 190, 0.1);
+  --glass-edge: rgba(214, 240, 236, 0.4);
+  --glass-shade: rgba(0, 0, 0, 0.4);
+  --tag: #b9c4c1;
+  --tag-ink: #0f1617;
+  --tag-found: #075750;
+  --table: #121d1f;
+  --paper: #f2f4f3;
+
+  --found: #2fd1c1;
+  --found-ink: #5fe0d3;
+  --found-wash: rgba(47, 209, 193, 0.14);
+  --focus: #8c9bff;
+  --focus-wash: rgba(140, 155, 255, 0.16);
+  --warn: #ff9b80;
+  --search-match: #59d878;
+  --search-match-ink: #75e094;
+  --search-other: #d58d87;
+  --search-other-ink: #e3a19b;
+
+  --lift-1: 0 1px 2px rgba(0, 0, 0, 0.5), 0 2px 6px rgba(0, 0, 0, 0.3);
+  --lift-2: 0 6px 16px rgba(0, 0, 0, 0.45), 0 2px 4px rgba(0, 0, 0, 0.3);
+  --lift-3: 0 18px 40px rgba(0, 0, 0, 0.6), 0 4px 10px rgba(0, 0, 0, 0.4);
+
+  color-scheme: dark;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root { --t-rail: 0ms; --t-glide: 120ms; }
+}

@@ -1,0 +1,189 @@
+{
+  "machine": {
+    "cpu": "AMD Ryzen 9 7900X 12-Core Processor",
+    "cores": 24,
+    "memory_gb": 31,
+    "gpu": null,
+    "runtime": "cpu",
+    "llama_cpp": "b11574",
+    "windows": "10.0.19045"
+  },
+  "library": "a demo PC of made-up files (974 files, 548 MB)",
+  "index": {
+    "files_read": 974,
+    "model_start_s": 1.9,
+    "seconds": 2643.0,
+    "contents": {
+      "screenshots": {
+        "files": 58,
+        "megabytes": 2.3,
+        "vectors": 58
+      },
+      "photos": {
+        "files": 221,
+        "megabytes": 65.7,
+        "vectors": 221
+      },
+      "PDFs": {
+        "files": 272,
+        "megabytes": 243.1,
+        "vectors": 2621,
+        "pages": 2624
+      },
+      "documents": {
+        "files": 365,
+        "megabytes": 6.8,
+        "vectors": 1957
+      },
+      "recordings": {
+        "files": 28,
+        "megabytes": 48.7,
+        "vectors": 120,
+        "minutes": 46.6
+      },
+      "videos": {
+        "files": 30,
+        "megabytes": 206.4,
+        "vectors": 199,
+        "minutes": 33.6
+      }
+    },
+    "index_mb": 35.8,
+    "average": {
+      "per_file_s": 2.712
+    }
+  },
+  "search": {
+    "vectors": 5176,
+    "queries": 120,
+    "wake_s": 1.22,
+    "load_ms": 35,
+    "first_ms": 158,
+    "total_ms": {
+      "p50": 47.8,
+      "p95": 126.2
+    },
+    "embed_ms": {
+      "p50": 11.5,
+      "p95": 13.8
+    },
+    "rank_ms": {
+      "p50": 36.9,
+      "p95": 114.4
+    }
+  },
+  "kinds": {
+    "screenshots": {
+      "files_read": 58,
+      "model_start_s": 1.6,
+      "seconds": 43.5,
+      "contents": {
+        "screenshots": {
+          "files": 58,
+          "megabytes": 2.3,
+          "vectors": 58
+        }
+      },
+      "index_mb": 0.7,
+      "average": {
+        "per_file_s": 0.722
+      }
+    },
+    "photos": {
+      "files_read": 221,
+      "model_start_s": 1.7,
+      "seconds": 78.4,
+      "contents": {
+        "photos": {
+          "files": 221,
+          "megabytes": 65.7,
+          "vectors": 221
+        }
+      },
+      "index_mb": 1.1,
+      "average": {
+        "per_file_s": 0.347
+      }
+    },
+    "PDFs": {
+      "files_read": 272,
+      "model_start_s": 1.6,
+      "seconds": 1904.6,
+      "contents": {
+        "PDFs": {
+          "files": 272,
+          "megabytes": 243.1,
+          "vectors": 2621,
+          "pages": 2624
+        }
+      },
+      "index_mb": 24.6,
+      "average": {
+        "per_file_s": 6.996,
+        "per_page_s": 0.725
+      }
+    },
+    "documents": {
+      "files_read": 365,
+      "model_start_s": 1.7,
+      "seconds": 488.8,
+      "contents": {
+        "documents": {
+          "files": 365,
+          "megabytes": 6.8,
+          "vectors": 1957
+        }
+      },
+      "index_mb": 10.6,
+      "average": {
+        "per_file_s": 1.335
+      }
+    },
+    "recordings": {
+      "files_read": 28,
+      "model_start_s": 1.9,
+      "seconds": 136.4,
+      "contents": {
+        "recordings": {
+          "files": 28,
+          "megabytes": 48.7,
+          "vectors": 120,
+          "minutes": 46.6
+        }
+      },
+      "index_mb": 0.8,
+      "average": {
+        "per_file_s": 4.804,
+        "per_minute_s": 2.886
+      }
+    },
+    "videos": {
+      "files_read": 30,
+      "model_start_s": 1.6,
+      "seconds": 112.6,
+      "contents": {
+        "videos": {
+          "files": 30,
+          "megabytes": 206.4,
+          "vectors": 199,
+          "minutes": 33.6
+        }
+      },
+      "index_mb": 0.9,
+      "average": {
+        "per_file_s": 3.7,
+        "per_minute_s": 3.304
+      }
+    }
+  },
+  "vector_pass": {
+    "100,000": {
+      "ms": 163.4,
+      "memory_mb": 154
+    },
+    "1,000,000": {
+      "ms": 1594.8,
+      "memory_mb": 1536
+    }
+  }
+}
