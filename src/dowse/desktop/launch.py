@@ -116,12 +116,13 @@ class StartupLock:
 
 
 QUIT_WAS_RUNNING = 2
+QUIT_STILL_RUNNING = 3   # not 1: a Python that can't even start (a half-installed app) exits with 1
 
 
 def quit_app(timeout: float = 30) -> int:
     """Asks the running app to quit and waits for it to let go of the startup lock (its files then free to be
     replaced). Exit code for the installer: 0 when no app was running, `QUIT_WAS_RUNNING` when it was and has quit
-    (an update starts it again), 1 if it's still there after `timeout` seconds."""
+    (an update starts it again), `QUIT_STILL_RUNNING` if it's still there after `timeout` seconds."""
     lock = StartupLock()
     if lock.acquire():   # nothing holds it: no app is running (whatever app.json says)
         lock.handle.close()
@@ -131,7 +132,7 @@ def quit_app(timeout: float = 30) -> int:
     deadline = time.monotonic() + timeout
     while not lock.acquire():
         if time.monotonic() > deadline:
-            return 1
+            return QUIT_STILL_RUNNING
         time.sleep(0.2)
     lock.handle.close()
     return QUIT_WAS_RUNNING

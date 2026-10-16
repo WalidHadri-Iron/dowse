@@ -112,6 +112,7 @@ Type: filesandordirs; Name: "{app}"
 const
   WebView2Key = 'Microsoft\EdgeUpdate\Clients\{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}';
   QuitWasRunning = 2;
+  QuitStillRunning = 3;   { launch.QUIT_STILL_RUNNING: any other code (a half-installed app's Python can't start) lets setup repair it }
 
 var
   Running: Boolean;
@@ -150,7 +151,7 @@ var
 begin
   Result := '';
   Code := QuitDowse();
-  if Code = 1 then
+  if Code = QuitStillRunning then
   begin
     Result := CustomMessage('StillRunning');
     exit;
@@ -172,6 +173,11 @@ begin
   if CurUninstallStep = usUninstall then
   begin
     RegDeleteValue(HKCU, 'Software\Microsoft\Windows\CurrentVersion\Run', 'Dowse');
+    { Explorer's menu, also when the app's own Python can't run to remove it (dowse.desktop.shell's keys) }
+    RegDeleteKeyIncludingSubkeys(HKCU, 'Software\Classes\*\shell\Dowse');
+    RegDeleteKeyIncludingSubkeys(HKCU, 'Software\Classes\Directory\shell\Dowse');
+    RegDeleteKeyIncludingSubkeys(HKCU, 'Software\Classes\Directory\Background\shell\DowseSearch');
+    DeleteFile(ExpandConstant('{userappdata}\Microsoft\Windows\SendTo\Dowse.lnk'));
     Data := ExpandConstant('{localappdata}\Dowse');
     if DirExists(Data) and not UninstallSilent() then
       if MsgBox(FmtMessage(CustomMessage('KeepData'), [Data]), mbConfirmation, MB_YESNO or MB_DEFBUTTON2) = IDYES then

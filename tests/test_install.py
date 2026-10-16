@@ -247,6 +247,25 @@ def test_quit_tells_the_installer_the_app_was_running_even_when_its_reply_is_los
         app.wait(10)
 
 
+def test_an_app_that_wont_quit_has_its_own_exit_code(monkeypatch, tmp_path):
+    """Not 1: that's what a Python that can't start exits with, and the installer must then repair, not refuse
+    (found in CI: an interrupted install broke the app, and its repair was refused as 'still running')."""
+    import subprocess
+
+    monkeypatch.setenv("DOWSE_HOME", str(tmp_path))
+    app = subprocess.Popen([sys.executable, "-c", (
+        "import time; from dowse.desktop.launch import StartupLock; lock = StartupLock();"
+        "assert lock.acquire(); print('held', flush=True); time.sleep(30)")],
+        stdout=subprocess.PIPE, text=True, env={**os.environ, "DOWSE_HOME": str(tmp_path)})
+    try:
+        assert app.stdout.readline().strip() == "held"
+        monkeypatch.setattr(launch, "send", lambda request: True)   # asked, but it stays
+        assert launch.quit_app(timeout=0.5) == launch.QUIT_STILL_RUNNING != 1
+    finally:
+        app.kill()
+        app.wait(10)
+
+
 def test_the_installed_app_starts_itself_with_dowse_exe(monkeypatch, tmp_path):
     (tmp_path / "python.exe").write_bytes(b"")
     monkeypatch.setattr(sys, "executable", str(tmp_path / "python.exe"))
