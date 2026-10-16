@@ -124,10 +124,24 @@ def test_encrypting_the_index(tmp_path):
     folder = tmp_path / "Index"
     folder.mkdir()
     (folder / "index.sqlite").write_bytes(b"x" * 100)
+    bucket = folder / "Pictures" / "ab"
+    bucket.mkdir(parents=True)
+    (bucket / "old.webp").write_bytes(b"old picture")
     privacy.apply(True, [folder])
     assert privacy.encrypted(folder) and privacy.encrypted(folder / "index.sqlite")
+    assert privacy.encrypted(folder / "Pictures") and privacy.encrypted(bucket)
+    assert privacy.encrypted(bucket / "old.webp")
     (folder / "index.sqlite-wal").write_bytes(b"y")                        # made later, in the folder: encrypted too
     assert privacy.encrypted(folder / "index.sqlite-wal")
+    (bucket / "new.webp").write_bytes(b"new picture")                     # an existing subfolder inherits too
+    temporary = bucket / "old.tmp"
+    temporary.write_bytes(b"replacement")
+    temporary.replace(bucket / "old.webp")
+    assert privacy.encrypted(bucket / "new.webp") and privacy.encrypted(bucket / "old.webp")
     assert (folder / "index.sqlite").read_bytes() == b"x" * 100             # as you, it reads as ever
     privacy.apply(False, [folder])
     assert not privacy.encrypted(folder) and not privacy.encrypted(folder / "index.sqlite")
+    assert not privacy.encrypted(folder / "Pictures") and not privacy.encrypted(bucket)
+    assert not privacy.encrypted(bucket / "old.webp") and not privacy.encrypted(bucket / "new.webp")
+    (bucket / "later.webp").write_bytes(b"later")
+    assert not privacy.encrypted(bucket / "later.webp")

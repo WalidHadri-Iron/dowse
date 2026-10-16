@@ -119,6 +119,10 @@ another app holds is refused), start with Windows, graphics card or processor (s
 needed), only index when plugged in (indexing always pauses on Battery Saver), pause, and the index's size,
 rebuild, and folders.
 
+Encryption is applied on restart to the index, cached previews and logs, including their existing subfolders.
+If Windows cannot apply the change, Dowse shows an error and does not start reading or searching; close anything
+using its data and launch it again to retry. The requested setting is kept, never silently turned off.
+
 ### Search models
 
 Choose during first-run setup, or later in **Settings → Search model**:

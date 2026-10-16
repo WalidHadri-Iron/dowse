@@ -70,22 +70,36 @@ def supported(where: Path | None = None) -> bool:
 
 def apply(on: bool, places: list[Path] | None = None) -> None:
     """Encrypts (or decrypts) the folders and every file in them. At start, before any of them is opened. A
-    file that can't be read as this user any more (encrypted under a password that was reset) is set aside."""
+    file that can't be read as this user any more (encrypted under a password that was reset) is set aside.
+    Failure stops startup: never continue writing plaintext while encryption was requested."""
     if not WINDOWS:
         return
     for folder in places or folders():
         if not folder.exists():
             folder.mkdir(parents=True, exist_ok=True)
-        for file in [p for p in folder.rglob("*") if p.is_file()]:
-            if encrypted(file) and not _readable(file):
-                aside = file.with_name(f"{file.name}.unreadable-{time.strftime('%Y%m%d-%H%M%S')}")
-                log.warning("%s can't be read as you (encrypted under a reset password?): set aside", file)
-                file.replace(aside)
-                continue
-            if encrypted(file) != on:
-                _encrypt(file, on)
-        if encrypted(folder) != on:   # a folder marked so: what's made in it later is encrypted too
-            _encrypt(folder, on)
+        for directory, _, names in os.walk(folder, onerror=_walk_error):
+            # EFS doesn't update existing subdirectories when their parent is marked. Each cache bucket needs its
+            # own flag, or a later thumbnail/atomic replacement in that bucket will be plaintext again.
+            _set_encryption(Path(directory), on)
+            for name in names:
+                file = Path(directory) / name
+                if encrypted(file) and not _readable(file):
+                    aside = file.with_name(f"{file.name}.unreadable-{time.strftime('%Y%m%d-%H%M%S')}")
+                    log.warning("%s can't be read as you (encrypted under a reset password?): set aside", file)
+                    file.replace(aside)
+                    continue
+                _set_encryption(file, on)
+
+
+def _walk_error(error: OSError) -> None:
+    raise error   # an unreadable subtree must not silently escape encryption
+
+
+def _set_encryption(path: Path, on: bool) -> None:
+    if encrypted(path) != on:
+        if not _encrypt(path, on) or encrypted(path) != on:
+            raise OSError(f"Windows couldn't {'encrypt' if on else 'decrypt'} {path}. "
+                          "Close other programs using Dowse's data and try again.")
 
 
 def _readable(file: Path) -> bool:

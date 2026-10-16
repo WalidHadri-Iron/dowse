@@ -30,7 +30,11 @@ your words   ─► the same model (text part only, ~310 MB) ─► z-scored cos
   time, a recording or video 10 minutes at a time (5 on a CPU). The first pass reads every waiting file's first step,
   so everything is searchable soon; the later pass reads the rest. Every step is saved in one transaction with
   where the next starts, so a run that stops goes on from there, and an index built in stops is identical to one
-  built in one go (tested). Memory holds one step whatever the file's size, and nothing is written to disk.
+  built in one go (tested). Media and PDF reading holds one step in memory. Documents are read before being split
+  into passages, with a 64 MiB input limit. For Office, OpenDocument and EPUB files, this is a shared limit on
+  decompressed content and metadata, checked before each member is opened and enforced on the actual read too;
+  unused embedded images aren't decompressed. A document over the limit is marked failed without stopping the
+  rest of indexing. Readers don't write temporary copies of originals to disk.
 - **Ranking that holds up with long files.** Meaning and words fused (meaning z + a word bonus), plus three corrections for
   what made long files and noise come up for unrelated queries (`searcher.py`, `scripts/ranking_experiment.py`):
   a file's best segment is read as the best of n (Šidák), the query's words must be found together and count by

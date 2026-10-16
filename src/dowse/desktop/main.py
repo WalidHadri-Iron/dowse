@@ -30,7 +30,13 @@ def _logging() -> None:
 
 def run(background: bool = False, pending: list[dict] = (), lock=None) -> int:
     migrate.run()   # before anything opens a file in the data folder
-    privacy.apply(bool(settings.load().get("encrypt_index", False)))   # (it can't once they're open)
+    try:
+        privacy.apply(bool(settings.load().get("encrypt_index", False)))   # (it can't once they're open)
+    except OSError as error:
+        # No log/index opened yet: don't write unprotected data after EFS failed. pythonw has no console, so make
+        # this failure visible and keep the requested setting for the next launch to retry.
+        winapi.startup_error(f"Dowse couldn't apply your index encryption setting and has not started.\n\n{error}")
+        return 1
     _logging()
     winapi.set_app_id(APP_ID)
     from .app import App

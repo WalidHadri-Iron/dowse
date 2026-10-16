@@ -17,6 +17,14 @@ _KEYS |= {chr(c).lower(): c for c in range(ord("A"), ord("Z") + 1)} | {str(d): 0
 WINDOWS = sys.platform == "win32"
 
 
+def startup_error(message: str) -> None:
+    """A failure before the app/logs can safely open (pythonw has no console)."""
+    if WINDOWS:
+        ctypes.windll.user32.MessageBoxW(None, message, "Dowse couldn't start", 0x10)   # MB_ICONERROR
+    else:
+        print(message, file=sys.stderr)
+
+
 def parse_hotkey(text: str) -> tuple[int, int]:
     """"Alt+Shift+Space" → (modifiers, virtual key). Raises ValueError for what can't be a hotkey."""
     parts = [p.strip().lower() for p in text.split("+") if p.strip()]

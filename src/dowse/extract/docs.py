@@ -17,6 +17,29 @@ MAX_BYTES = 64 << 20
 MAX_ROWS = 20_000   # of a spreadsheet's rows, all sheets together: past that it's data, not a document
 
 
+class _Archive(zipfile.ZipFile):
+    """One decompression budget for the whole document, including titles and other metadata.
+
+    Check declared sizes before allocating, then bound the actual read too. Unused embedded images aren't read
+    or charged: an illustrated document can still be searched without decompressing its pictures.
+    """
+
+    def __init__(self, path: str):
+        super().__init__(path)
+        self.left = MAX_BYTES
+
+    def read(self, name, pwd=None) -> bytes:
+        member = name if isinstance(name, zipfile.ZipInfo) else self.getinfo(name)
+        if member.file_size > self.left:
+            raise ExtractError("document's decompressed content over 64 MB")
+        with self.open(member, pwd=pwd) as file:
+            data = file.read(self.left + 1)
+        if len(data) > self.left:
+            raise ExtractError("document's decompressed content over 64 MB")
+        self.left -= len(data)
+        return data
+
+
 def read(path: str) -> tuple[str, str | None]:
     """(text, title). Slides of a deck come one per paragraph, in order."""
     ext = extension(path)
@@ -25,21 +48,21 @@ def read(path: str) -> tuple[str, str | None]:
             raw = _decode(_bytes(path))
             title = re.search(r"(?is)<title[^>]*>(.*?)</title>", raw)
             return searchtext.html_to_text(raw), (searchtext.html_to_text(title.group(1)) if title else None)
-        if ext == "docx":
-            return _xml_text(path, ["word/document.xml"], "p"), _core_title(path)
-        if ext == "pptx":
-            with zipfile.ZipFile(path) as archive:
-                slides = sorted((n for n in archive.namelist() if re.fullmatch(r"ppt/slides/slide\d+\.xml", n)),
-                                key=lambda n: int(re.search(r"\d+", PurePath(n).name).group()))
-            return _xml_text(path, slides, "p"), _core_title(path)
-        if ext in ("odt", "odp"):
-            return _xml_text(path, ["content.xml"], "p", "h"), None
-        if ext == "ods":
-            return _ods_text(path), None
-        if ext == "xlsx":
-            return _xlsx_text(path), _core_title(path)
-        if ext == "epub":
-            return _epub_text(path)
+        if ext in ("docx", "pptx", "odt", "odp", "ods", "xlsx", "epub"):
+            with _Archive(path) as archive:
+                if ext == "docx":
+                    return _xml_text(archive, ["word/document.xml"], "p"), _core_title(archive)
+                if ext == "pptx":
+                    slides = sorted((n for n in archive.namelist() if re.fullmatch(r"ppt/slides/slide\d+\.xml", n)),
+                                    key=lambda n: int(re.search(r"\d+", PurePath(n).name).group()))
+                    return _xml_text(archive, slides, "p"), _core_title(archive)
+                if ext in ("odt", "odp"):
+                    return _xml_text(archive, ["content.xml"], "p", "h"), None
+                if ext == "ods":
+                    return _ods_text(archive), None
+                if ext == "xlsx":
+                    return _xlsx_text(archive), _core_title(archive)
+                return _epub_text(archive)
         if ext == "rtf":
             return _rtf_text(_decode(_bytes(path))), None
         if ext == "eml":
@@ -72,29 +95,28 @@ def _local(tag: str) -> str:
     return tag.rsplit("}", 1)[-1]
 
 
-def _xml_text(path: str, members: list[str], *paragraphs: str) -> str:
+def _xml_text(archive: _Archive, members: list[str], *paragraphs: str) -> str:
     """The text of XML `members` in a zip: one line per paragraph element (by local name), tabs and breaks kept."""
     lines: list[str] = []
-    with zipfile.ZipFile(path) as archive:
-        for member in members:
-            root = ElementTree.fromstring(archive.read(member))
-            for element in root.iter():
-                if _local(element.tag) in paragraphs:
-                    parts = []
-                    for node in element.iter():
-                        name = _local(node.tag)
-                        if name in ("t", "span") or node is element:
-                            if node.text:
-                                parts.append(node.text)
-                        elif name in ("tab", "s"):
-                            parts.append(" ")
-                        elif name in ("br", "line-break"):
-                            parts.append("\n")
-                        if node.tail and node is not element and name not in ("t",):
-                            parts.append(node.tail)
-                    line = "".join(parts).strip()
-                    if line:
-                        lines.append(line)
+    for member in members:
+        root = ElementTree.fromstring(archive.read(member))
+        for element in root.iter():
+            if _local(element.tag) in paragraphs:
+                parts = []
+                for node in element.iter():
+                    name = _local(node.tag)
+                    if name in ("t", "span") or node is element:
+                        if node.text:
+                            parts.append(node.text)
+                    elif name in ("tab", "s"):
+                        parts.append(" ")
+                    elif name in ("br", "line-break"):
+                        parts.append("\n")
+                    if node.tail and node is not element and name not in ("t",):
+                        parts.append(node.tail)
+                line = "".join(parts).strip()
+                if line:
+                    lines.append(line)
     return "\n".join(lines)
 
 
@@ -112,43 +134,41 @@ def _rows(sheets: list[tuple[str, list[list[str]]]]) -> str:
     return "\n".join(lines)
 
 
-def _xlsx_text(path: str) -> str:
-    with zipfile.ZipFile(path) as archive:
-        names = set(archive.namelist())
-        shared = []
-        if "xl/sharedStrings.xml" in names:
-            for item in ElementTree.fromstring(archive.read("xl/sharedStrings.xml")):
-                shared.append("".join(t.text or "" for t in item.iter() if _local(t.tag) == "t"))
-        workbook = ElementTree.fromstring(archive.read("xl/workbook.xml"))
-        links = {r.get("Id"): r.get("Target") for r in ElementTree.fromstring(archive.read("xl/_rels/workbook.xml.rels"))}
-        sheets = []
-        for sheet in (e for e in workbook.iter() if _local(e.tag) == "sheet"):
-            link = next((v for k, v in sheet.attrib.items() if _local(k) == "id"), None)
-            target = links.get(link, "").lstrip("/")
-            member = target if target.startswith("xl/") else f"xl/{target}"
-            if member not in names:
-                continue
-            rows = []
-            for row in (e for e in ElementTree.fromstring(archive.read(member)).iter() if _local(e.tag) == "row"):
-                cells = []
-                for cell in (c for c in row if _local(c.tag) == "c"):
-                    kind = cell.get("t")
-                    if kind == "inlineStr":
-                        cells.append("".join(t.text or "" for t in cell.iter() if _local(t.tag) == "t"))
-                        continue
-                    value = next((v.text for v in cell if _local(v.tag) == "v"), None) or ""
-                    cells.append(shared[int(value)] if kind == "s" and value.isdigit() and int(value) < len(shared)
-                                 else value)
-                rows.append(cells)
-                if len(rows) >= MAX_ROWS:
-                    break
-            sheets.append((sheet.get("name") or "Sheet", rows))
+def _xlsx_text(archive: _Archive) -> str:
+    names = set(archive.namelist())
+    shared = []
+    if "xl/sharedStrings.xml" in names:
+        for item in ElementTree.fromstring(archive.read("xl/sharedStrings.xml")):
+            shared.append("".join(t.text or "" for t in item.iter() if _local(t.tag) == "t"))
+    workbook = ElementTree.fromstring(archive.read("xl/workbook.xml"))
+    links = {r.get("Id"): r.get("Target") for r in ElementTree.fromstring(archive.read("xl/_rels/workbook.xml.rels"))}
+    sheets = []
+    for sheet in (e for e in workbook.iter() if _local(e.tag) == "sheet"):
+        link = next((v for k, v in sheet.attrib.items() if _local(k) == "id"), None)
+        target = links.get(link, "").lstrip("/")
+        member = target if target.startswith("xl/") else f"xl/{target}"
+        if member not in names:
+            continue
+        rows = []
+        for row in (e for e in ElementTree.fromstring(archive.read(member)).iter() if _local(e.tag) == "row"):
+            cells = []
+            for cell in (c for c in row if _local(c.tag) == "c"):
+                kind = cell.get("t")
+                if kind == "inlineStr":
+                    cells.append("".join(t.text or "" for t in cell.iter() if _local(t.tag) == "t"))
+                    continue
+                value = next((v.text for v in cell if _local(v.tag) == "v"), None) or ""
+                cells.append(shared[int(value)] if kind == "s" and value.isdigit() and int(value) < len(shared)
+                             else value)
+            rows.append(cells)
+            if len(rows) >= MAX_ROWS:
+                break
+        sheets.append((sheet.get("name") or "Sheet", rows))
     return _rows(sheets)
 
 
-def _ods_text(path: str) -> str:
-    with zipfile.ZipFile(path) as archive:
-        root = ElementTree.fromstring(archive.read("content.xml"))
+def _ods_text(archive: _Archive) -> str:
+    root = ElementTree.fromstring(archive.read("content.xml"))
     sheets = []
     for table in (e for e in root.iter() if _local(e.tag) == "table"):
         name = next((v for k, v in table.attrib.items() if _local(k) == "name"), "Sheet")
@@ -162,33 +182,28 @@ def _ods_text(path: str) -> str:
     return _rows(sheets)
 
 
-def _epub_text(path: str) -> tuple[str, str | None]:
+def _epub_text(archive: _Archive) -> tuple[str, str | None]:
     """The book's chapters in reading order (its spine), and its title."""
-    with zipfile.ZipFile(path) as archive:
-        container = ElementTree.fromstring(archive.read("META-INF/container.xml"))
-        opf_path = next(e.get("full-path") for e in container.iter() if _local(e.tag) == "rootfile")
-        opf = ElementTree.fromstring(archive.read(opf_path))
-        folder = PurePath(opf_path).parent
-        title = next(((e.text or "").strip() for e in opf.iter() if _local(e.tag) == "title"), None) or None
-        manifest = {e.get("id"): e.get("href") for e in opf.iter() if _local(e.tag) == "item"}
-        chapters, size = [], 0
-        for ref in (e for e in opf.iter() if _local(e.tag) == "itemref"):
-            href = manifest.get(ref.get("idref"))
-            member = (folder / href).as_posix() if href else None
-            if not member or member not in archive.namelist():
-                continue
-            raw = archive.read(member)
-            size += len(raw)
-            if size > MAX_BYTES:
-                break
-            chapters.append(searchtext.html_to_text(_decode(raw)))
+    container = ElementTree.fromstring(archive.read("META-INF/container.xml"))
+    opf_path = next(e.get("full-path") for e in container.iter() if _local(e.tag) == "rootfile")
+    opf = ElementTree.fromstring(archive.read(opf_path))
+    folder = PurePath(opf_path).parent
+    title = next(((e.text or "").strip() for e in opf.iter() if _local(e.tag) == "title"), None) or None
+    manifest = {e.get("id"): e.get("href") for e in opf.iter() if _local(e.tag) == "item"}
+    chapters = []
+    for ref in (e for e in opf.iter() if _local(e.tag) == "itemref"):
+        href = manifest.get(ref.get("idref"))
+        member = (folder / href).as_posix() if href else None
+        if not member or member not in archive.namelist():
+            continue
+        raw = archive.read(member)
+        chapters.append(searchtext.html_to_text(_decode(raw)))
     return "\n\n".join(chapters), title
 
 
-def _core_title(path: str) -> str | None:
+def _core_title(archive: _Archive) -> str | None:
     try:
-        with zipfile.ZipFile(path) as archive:
-            root = ElementTree.fromstring(archive.read("docProps/core.xml"))
+        root = ElementTree.fromstring(archive.read("docProps/core.xml"))
     except (KeyError, zipfile.BadZipFile, ElementTree.ParseError):
         return None
     for element in root.iter():
