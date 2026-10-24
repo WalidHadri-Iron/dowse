@@ -53,8 +53,9 @@ def main() -> None:
     app = launch("--background", wait=False)                       # the app, in the menu bar
     state = until(lambda: (paths.home() / "app.json").exists() and json.loads((paths.home() / "app.json").read_text()),
                   90, "the app announcing itself (app.json)")
-    until(lambda: answers(state["url"]), 30, "the app's server")
-    print("app up:", state["url"], "pid", state.get("pid"))
+    url = f"http://127.0.0.1:{state['port']}/"   # (app.json: port, token, pid)
+    until(lambda: answers(url), 30, "the app's server")
+    print("app up:", url, "pid", state.get("pid"))
     launch()                                                        # a second launch: Quick search
     time.sleep(8)
     shoot(out, "quick-search")
