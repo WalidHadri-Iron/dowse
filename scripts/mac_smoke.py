@@ -10,6 +10,7 @@ import os
 import subprocess
 import sys
 import time
+import urllib.error
 import urllib.request
 from pathlib import Path
 
@@ -33,9 +34,12 @@ def until(check, seconds: float, what: str):
 
 
 def answers(url: str) -> bool:
+    """Does the server answer at all (any HTTP status)?"""
     try:
-        with urllib.request.urlopen(url, timeout=2) as response:
-            return response.status == 200
+        with urllib.request.urlopen(url, timeout=2):
+            return True
+    except urllib.error.HTTPError:
+        return True
     except OSError:
         return False
 
