@@ -127,10 +127,18 @@ def main() -> None:
     errors = [line for line in log.read_text(errors="replace").splitlines() if " ERROR " in line] if log.exists() else []
     for line in errors:
         print("logged:", line)
-    leftover = subprocess.run(["pgrep", "-f", "llama-server|dowse.desktop.windows"], capture_output=True, text=True)
-    if leftover.stdout.strip():
-        print("still running:", leftover.stdout.strip())
-    if code not in (0, 2) or errors or leftover.stdout.strip():
+    def leftover() -> str:   # what it started, still running (each ends once its own goes: up to its grace)
+        found = subprocess.run(["pgrep", "-f", "llama-server|dowse.desktop.windows|dowse.childguard"],
+                               capture_output=True, text=True).stdout.split()
+        lines = (subprocess.run(["ps", "-o", "pid=,command=", "-p", pid], capture_output=True, text=True).stdout.strip()
+                 for pid in found)
+        return "\n".join(line for line in lines if line)
+    end = time.monotonic() + 20
+    while (running := leftover()) and time.monotonic() < end:
+        time.sleep(1)
+    if running:
+        print("still running:\n" + running)
+    if code not in (0, 2) or errors or running:
         raise SystemExit(1)
 
 
