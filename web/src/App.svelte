@@ -3,6 +3,7 @@
   import { api } from "./lib/api";
   import { primary } from "./lib/keys";
   import { dowse } from "./lib/app.svelte";
+  import { trayName } from "./lib/system";
   import { search } from "./lib/search.svelte";
   import { windowMode } from "./lib/window.svelte";
   import Icon from "./components/Icon.svelte";
@@ -73,7 +74,7 @@
   <main class="unreachable">
     <Brand height={36} />
     <h1 class="sign">Dowse can't reach its engine</h1>
-    <p>{failed}. Quit Dowse from the tray icon and open it again.</p>
+    <p>{failed}. Quit Dowse from {trayName()} and open it again.</p>
   </main>
 {:else if !dowse.state}
   <div class="loading" aria-busy="true" role="status"><Brand height={36} /><span>Opening Dowse…</span></div>

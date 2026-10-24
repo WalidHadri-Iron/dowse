@@ -13,7 +13,9 @@ dependencies = [
     "httpx>=0.28",
     "av>=14.0",          # FFmpeg (bundled): audio and video
     "pywebview>=5.4",            # the app's windows: Windows' own Edge WebView2, no browser bundled
-    "pystray>=0.19",             # the tray icon
+    "pystray>=0.19; sys_platform != 'linux'",   # the tray icon (Linux: Qt's, below)
+    "PySide6-WebEngine>=6.12; sys_platform == 'linux'",   # Linux's window (Qt WebEngine, behind pywebview), tray
+    "QtPy>=2.4; sys_platform == 'linux'",
     # Windows' own OCR (Windows.Media.Ocr): offline, fast, the languages installed in Windows.
     "winrt-runtime>=3.1; sys_platform == 'win32'",
     "winrt-Windows.Foundation>=3.1; sys_platform == 'win32'",

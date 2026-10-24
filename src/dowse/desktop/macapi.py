@@ -121,6 +121,10 @@ def open_file(path: str, kind: str, loc: float | None = None) -> None:
     subprocess.Popen(command or ["open", path], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
 
+def open_folder(path: str) -> None:
+    subprocess.Popen(["open", path])
+
+
 def reveal(path: str) -> None:
     """Finder, with the file selected."""
     subprocess.Popen(["open", "-R", path])

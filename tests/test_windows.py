@@ -121,15 +121,15 @@ def test_window_process_sets_its_own_identity_before_creating_the_form(host, mon
 
 def test_production_webview_starts_with_the_packaged_icon(monkeypatch):
     if windows.HOST is None:
-        pytest.skip("no window host on this system yet (Windows and macOS)")
+        pytest.skip("no window host on this system")
     options = {}
     monkeypatch.setattr(windows.sys, "argv", ["windows", "http://127.0.0.1:1234/", "test-token"])
     monkeypatch.setattr(windows, "Windows", lambda *args: SimpleNamespace())
     monkeypatch.setattr(windows.webview, "start", lambda callback, **kwargs: options.update(kwargs))
     windows.main()
-    assert options["icon"] == str(windows.ICON)
-    assert options["gui"] == windows.HOST.GUI   # WebView2 on Windows, WKWebView on a Mac
-    assert windows._WindowsHost.GUI == "edgechromium" and windows._MacHost.GUI == "cocoa"
+    assert options["icon"] == str(windows.APP_PNG if windows.HOST.GUI == "qt" else windows.ICON)   # (Qt: a PNG)
+    assert options["gui"] == windows.HOST.GUI   # WebView2 on Windows, WKWebView on a Mac, Qt WebEngine on Linux
+    assert (windows._WindowsHost.GUI, windows._MacHost.GUI, windows._LinuxHost.GUI) == ("edgechromium", "cocoa", "qt")
 
 
 def test_explicit_popup_dismissal_cannot_hide_a_workspace_or_file_dialog(host):

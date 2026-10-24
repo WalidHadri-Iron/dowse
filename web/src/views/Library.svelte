@@ -7,6 +7,7 @@
   import { api, pictureUrl, type Entry } from "../lib/api";
   import { primary } from "../lib/keys";
   import { KIND_NAME, dowse, size, when } from "../lib/app.svelte";
+  import { fileManager, hasFileMenu } from "../lib/system";
   import { search } from "../lib/search.svelte";
   import type { IconName } from "../lib/icons";
   import Icon from "../components/Icon.svelte";
@@ -349,8 +350,8 @@
           <div class="empty">
             {#if filter}<h3 class="sign">No matches</h3><p>No file here has “{filter}” in its name.</p>
             {:else if view === ATTENTION}<h3 class="sign">All good</h3><p>Every file Dowse found was read.</p>
-            {:else if view === REMOVED}<h3 class="sign">Nothing removed</h3><p>Select files and choose Remove, or right-click them in Explorer, to keep them out of search.</p>
-            {:else if view === NAMED}<h3 class="sign">No files added one by one</h3><p>Add files from anywhere: Add files on the left, or right-click them in Explorer and choose Dowse › Add to Dowse.</p>
+            {:else if view === REMOVED}<h3 class="sign">Nothing removed</h3><p>Select files and choose Remove{hasFileMenu() ? `, or right-click them in ${fileManager()},` : ""} to keep them out of search.</p>
+            {:else if view === NAMED}<h3 class="sign">No files added one by one</h3><p>Add files from anywhere: Add files on the left{hasFileMenu() ? `, or right-click them in ${fileManager()} and choose Dowse › Add to Dowse` : ""}.</p>
             {:else if stateFilter !== "all"}<h3 class="sign">No {stateFilter} items here</h3><p>Change the activity filter to see the other items.</p>
             {:else if view === FOLDERS}<h3 class="sign">No folders added</h3><p>Add a folder to search its contents. You can deactivate it anytime.</p>
             {:else if view === INACTIVE}<h3 class="sign">Nothing inactive</h3><p>Turn off a file or folder's Search switch to keep it here without removing it.</p>

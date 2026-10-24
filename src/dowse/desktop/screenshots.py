@@ -19,6 +19,7 @@ from collections.abc import Callable
 
 from ..watcher import Changes, FolderWatcher
 from .. import paths, rules
+from . import winapi
 
 log = logging.getLogger("dowse.screenshots")
 
@@ -50,10 +51,9 @@ def known_folder(guid: str) -> str | None:
 
 def folders() -> list[str]:
     """Where Windows (and OneDrive) save screenshots on this PC; on a Mac, where macOS saves them (the Desktop unless
-    another folder was chosen)."""
-    if sys.platform == "darwin":
-        from . import macapi
-        return [os.path.normpath(macapi.screenshots_folder())]
+    another folder was chosen); on Linux, where GNOME or KDE save them (Pictures/Screenshots, else Pictures)."""
+    if (system := winapi.own()) is not None:
+        return [os.path.normpath(system.screenshots_folder())]
     out = []
     windows = known_folder(FOLDERID_SCREENSHOTS) or os.path.join(os.path.expanduser("~"), "Pictures", "Screenshots")
     out.append(windows)
@@ -130,11 +130,11 @@ class ScreenshotWatcher:
             return False
         if paths.fold(os.path.dirname(path)) not in {paths.fold(r) for r in self.roots}:
             return False
-        if sys.platform == "darwin" and not rules.is_screenshot(path):
-            return False   # a Mac saves screenshots beside other files (the Desktop): only those named as screenshots
+        if sys.platform != "win32" and not rules.is_screenshot(path):
+            return False   # saved beside other files (a Mac's Desktop, Linux's Pictures): only those named as screenshots
         try:
             info = os.stat(path)
         except OSError:
             return False
-        made = getattr(info, "st_birthtime", info.st_ctime)   # when the file was created (Windows: st_ctime)
+        made = getattr(info, "st_birthtime", info.st_ctime)   # when the file was created (Windows, Linux: st_ctime)
         return os.path.isfile(path) and made >= self._since - 1

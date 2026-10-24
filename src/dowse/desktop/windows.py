@@ -1,5 +1,5 @@
 """One app window, in a process of its own: quick search and the workspace in the same web view (WebView2 on
-Windows, WKWebView on a Mac).
+Windows, WKWebView on a Mac, Qt WebEngine on Linux).
 
 The app (tray, shortcut, engine, server) starts this process when a window is wanted, and it exits after `IDLE`
 seconds with no window shown: WebView2 holds ~240 MB for as long as any window exists, and a tray app at rest
@@ -17,11 +17,14 @@ import sys
 import threading
 import time
 
+if sys.platform.startswith("linux"):
+    os.environ.setdefault("QT_API", "pyside6")   # pywebview's Qt backend, through QtPy: PySide6 (LGPL)
+
 import webview
 
 from .. import paths
 from . import winapi
-from .brand import APP_ID, ICON
+from .brand import APP_ID, APP_PNG, ICON
 
 POPUP_SIZE = (860, 600)   # logical pixels, including the native window frame
 POPUP_MIN = (640, 440)
@@ -203,7 +206,86 @@ class _MacHost:
         self.on_ui(window, lambda: NSApp.setAppearance_(NSAppearance.appearanceNamed_(name)))
 
 
-HOST = _MacHost() if sys.platform == "darwin" else _WindowsHost() if sys.platform == "win32" else None
+class _LinuxHost:
+    """What the window needs from Linux: Qt (PySide6, its WebEngine behind pywebview's Qt backend). Sizes are Qt's
+    device-independent pixels. On Wayland a window can't place itself or take the focus: the compositor decides."""
+
+    GUI = "qt"
+
+    def app_id(self) -> None:
+        from PySide6.QtGui import QGuiApplication
+
+        QGuiApplication.setApplicationName("Dowse")
+        QGuiApplication.setDesktopFileName("dowse")   # the taskbar's icon and name: dowse.desktop's
+
+    def cursor_screen(self) -> tuple[float, float, float, float]:
+        """The available area (without panels) of the screen the mouse is on."""
+        from PySide6.QtGui import QCursor, QGuiApplication
+
+        screen = QGuiApplication.screenAt(QCursor.pos()) or QGuiApplication.primaryScreen()
+        area = screen.availableGeometry()
+        return area.x(), area.y(), area.x() + area.width(), area.y() + area.height()
+
+    def scale(self, window) -> float:
+        return 1.0   # pywebview works in Qt's device-independent pixels
+
+    def on_ui(self, window, apply) -> None:
+        from PySide6.QtCore import QTimer
+        from PySide6.QtWidgets import QApplication
+
+        done = threading.Event()
+
+        def run():
+            try:
+                apply()
+            finally:
+                done.set()
+
+        QTimer.singleShot(0, QApplication.instance(), run)
+        done.wait(5)
+
+    def minimum(self, window, size: tuple[int, int]) -> None:
+        self.on_ui(window, lambda: window.native.setMinimumSize(*size))
+
+    def topmost(self, window, on_top: bool) -> None:
+        self.on_ui(window, lambda: setattr(window, "on_top", on_top))
+
+    def bounds(self, window) -> tuple[tuple[int, int, int, int], bool]:
+        native = window.native
+        frame = native.frameGeometry()
+        return (frame.x(), frame.y(), frame.width(), frame.height()), bool(native.isMaximized())
+
+    def minimized(self, window) -> bool:
+        return bool(window.native.isMinimized())
+
+    def focused(self, window) -> bool:
+        return bool(window.native.isActiveWindow())
+
+    def hide_now(self, window) -> None:
+        self.on_ui(window, lambda: window.native.hide())
+
+    def bring_forward(self, window) -> None:
+        def forward():
+            native = window.native
+            native.showNormal() if native.isMinimized() else native.show()
+            native.raise_()
+            native.activateWindow()
+
+        self.on_ui(window, forward)
+
+    def title_bar(self, window, dark: bool) -> None:
+        """Qt's own parts (dialogs, scroll bars) in the app's look (Qt 6.8 and later); the title bar is the desktop's."""
+        from PySide6.QtCore import Qt
+        from PySide6.QtGui import QGuiApplication
+
+        hints = QGuiApplication.styleHints()
+        if hasattr(hints, "setColorScheme"):
+            scheme = Qt.ColorScheme.Dark if dark else Qt.ColorScheme.Light
+            self.on_ui(window, lambda: hints.setColorScheme(scheme))
+
+
+HOST = _MacHost() if sys.platform == "darwin" else _WindowsHost() if sys.platform == "win32" else \
+    _LinuxHost() if sys.platform.startswith("linux") else None
 
 
 class Windows:
@@ -421,7 +503,7 @@ def main() -> None:
         threading.Thread(target=windows.idle, name="idle", daemon=True).start()
         windows.send({"event": "ready"})
 
-    webview.start(started, gui=HOST.GUI, icon=str(ICON), private_mode=False,
+    webview.start(started, gui=HOST.GUI, icon=str(APP_PNG if HOST.GUI == "qt" else ICON), private_mode=False,
                   storage_path=str(paths.home() / "WebView"))
 
 
