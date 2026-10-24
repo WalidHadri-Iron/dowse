@@ -21,13 +21,36 @@ import threading
 
 from .. import runtime
 from . import winapi
-from .brand import ICON
+from .brand import ICON, MENU_BAR_ICON
 from .indexing import Status
 
 log = logging.getLogger("dowse.native")
 
 WM_HOTKEY, WM_APP = 0x0312, 0x8000
 
+
+
+def _menu_bar_icon(base):
+    """pystray's Mac icon, drawn as macOS draws menu-bar icons: a template image (black and clear, coloured by the
+    system for a light or dark menu bar, highlighted when open), 18 points in the bar's 22, sharp on Retina."""
+    class MenuBarIcon(base):
+        def _assert_image(self):
+            if self._icon_image is not None:
+                return
+            import io
+
+            import AppKit
+            import Foundation
+
+            data = io.BytesIO()
+            self._icon.save(data, "png")
+            image = AppKit.NSImage.alloc().initWithData_(Foundation.NSData(data.getvalue()))
+            image.setSize_((18, 18))
+            image.setTemplate_(True)
+            self._icon_image = image
+            self._status_item.button().setImage_(image)
+
+    return MenuBarIcon
 
 class Hotkey:
     """The global shortcut, on a thread with its own message queue."""
@@ -308,7 +331,10 @@ class Native:
             pystray.Menu.SEPARATOR,
             pystray.MenuItem("Quit Dowse", lambda: self.quit()),
         )
-        self.tray = pystray.Icon("Dowse", Image.open(ICON), "Dowse", menu)
+        if sys.platform == "darwin":
+            self.tray = _menu_bar_icon(pystray.Icon)("Dowse", Image.open(MENU_BAR_ICON), "Dowse", menu)
+        else:
+            self.tray = pystray.Icon("Dowse", Image.open(ICON), "Dowse", menu)
         if start:
             threading.Thread(target=self.tray.run, name="tray", daemon=True).start()
 
