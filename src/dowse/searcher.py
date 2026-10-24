@@ -313,6 +313,7 @@ class _Words:
     coverage: float = 0.0     # share of the query's words found together (weighted by rarity when `rare_words`)
     specificity: float = 1.0  # how rare the words found are, on average (1 without `rare_words`)
     patterns: list[str] = field(default_factory=list)
+    tag_match: bool = False     # all words match music metadata, not only its folder
 
 
 class Searcher:
@@ -437,6 +438,8 @@ class Searcher:
             z = best.get(file, (0.0,))[0]
             match = words.get(file)
             bonus = words_weight * match.coverage ** 1.5 * match.specificity if match else 0.0
+            if match and match.tag_match:
+                bonus += 0.5 * words_weight * match.specificity
             score = meaning_weight * (max(z, 0) if z_gate >= 0 else z) + bonus
             if self.file_kind.get(file) in hinted:
                 score += 1
@@ -553,7 +556,9 @@ class Searcher:
         words: dict[int, _Words] = {}
         for file, segment in self.store.db.execute(
                 "SELECT s.file, s.id FROM fts JOIN segments s ON s.id = fts.rowid JOIN files f ON f.id = s.file "
-                "WHERE fts MATCH ? AND f.active = 1 ORDER BY bm25(fts, 3.0, 1.0)" + ("" if filtered else " LIMIT 1000"),
+                "WHERE fts MATCH ? AND f.active = 1 "
+                "ORDER BY CASE WHEN s.kind = 'tag' THEN 0 ELSE 1 END, bm25(fts, 3.0, 1.0)" +
+                ("" if filtered else " LIMIT 1000"),
                 (" OR ".join(patterns),)):
             if len(words) >= 100:
                 break
@@ -566,10 +571,13 @@ class Searcher:
         ids = ",".join(map(str, words))
         held: dict[int, dict[int, set[int]]] = {f: {} for f in words}   # file → segment → word indexes
         names: dict[int, set[int]] = {f: set() for f in words}
+        tags: dict[int, set[int]] = {f: set() for f in words}
         for index, pattern in enumerate(patterns):
             for segment, file, kind in self.store.db.execute(
                     f"SELECT s.id, s.file, s.kind FROM fts JOIN segments s ON s.id = fts.rowid "
                     f"WHERE fts MATCH ? AND s.file IN ({ids})", (pattern,)):
+                if kind == "tag":
+                    tags[file].add(index)
                 (names[file] if kind == "name" else held[file].setdefault(segment, set())).add(index)
 
         rarity = self._rarity(patterns) if self.ranking.rare_words else [1.0] * len(patterns)
@@ -591,6 +599,7 @@ class Searcher:
             match.coverage = sum(rarity[i] for i in found) / total if total else 0.0
             match.specificity = (sum(rarity[i] for i in found) / len(found)) if found and self.ranking.rare_words \
                 else 1.0
+            match.tag_match = bool(patterns) and len(tags[file]) == len(patterns)
         return words
 
     def _evidence(self, file: int, hit: Hit, keyword: _Words | None, semantic: bool) -> list[dict]:
@@ -604,6 +613,8 @@ class Searcher:
             sources = {hit.segment_id}
             if hit.segment == "image":
                 sources.add(keyword.segment)
+            if self.store.db.execute("SELECT kind FROM segments WHERE id = ?", (keyword.segment,)).fetchone() == ("tag",):
+                sources.add(keyword.segment)   # an audio vector may win, but its matching music tags are still evidence
             rows = self.store.db.execute(
                 "SELECT s.id, s.kind, s.loc, s.loc_end, highlight(fts, 0, '«', '»'), "
                 "highlight(fts, 1, '«', '»') FROM fts JOIN segments s ON s.id = fts.rowid "
@@ -626,7 +637,7 @@ class Searcher:
                                     "loc": loc, "locEnd": end, "segment": segment})
                     words = re.findall("«(.*?)»", body or "")
                     if words:
-                        out.append({"source": "ocr" if kind == "ocr" else "text",
+                        out.append({"source": "ocr" if kind == "ocr" else "tag" if kind == "tag" else "text",
                                     "words": list(dict.fromkeys(words)), "loc": loc, "locEnd": end,
                                     "segment": segment})
         if semantic:

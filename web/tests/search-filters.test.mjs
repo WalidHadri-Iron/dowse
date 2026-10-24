@@ -30,13 +30,14 @@ test("evidence explains real words, filename, page and timestamp without scores"
     { source: "folder", words: ["Contracts"] },
     { source: "text", words: ["walnuts"], place: "Page 5", score: 3.74 },
     { source: "text", words: ["meeting"], place: "1:20" },
+    { source: "tag", words: ["Night Owls"] },
     { source: "ocr", words: ["WiFi"] },
     { source: "semantic", words: [], modality: "visual", place: "Page 9" },
     { source: "date", words: [], dateSource: "taken", date: "2025-07-12" },
   ]);
   assert.deepEqual(lines, [
     "Filename contains “sherlock”", "Folder name contains “Contracts”", "Text contains “walnuts” · Page 5",
-    "Text contains “meeting” · 1:20", "Words read in image: “WiFi”",
+    "Text contains “meeting” · 1:20", "Music tags contain “Night Owls”", "Words read in image: “WiFi”",
     "Visual similarity · Page 9 · not an exact word match",
     "Photo taken on 2025-07-12 · within date filter",
   ]);
