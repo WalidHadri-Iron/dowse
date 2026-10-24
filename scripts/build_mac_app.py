@@ -14,6 +14,7 @@ stapled, so it opens like any app:
 
     DOWSE_MAC_IDENTITY="Developer ID Application: <name> (<team>)"   the signing identity, in the keychain
     DOWSE_NOTARY_PROFILE=<profile>       credentials saved with `xcrun notarytool store-credentials <profile>`
+    DOWSE_NOTARY_KEYCHAIN=<keychain>     the keychain they were saved in, if not the login keychain (CI)
 
 Before: build the interface (`cd web && npm run build`). The Python download is cached in build/cache.
 """
@@ -168,7 +169,9 @@ def dmg(app: Path, app_version: str) -> Path:
         run("codesign", "--force", "--sign", identity, "--timestamp", output)
     if profile := os.environ.get("DOWSE_NOTARY_PROFILE"):
         say("Notarizing (Apple's notary service)…")
-        run("xcrun", "notarytool", "submit", output, "--keychain-profile", profile, "--wait")
+        keychain = os.environ.get("DOWSE_NOTARY_KEYCHAIN")   # where the profile was stored, if not the login keychain
+        run("xcrun", "notarytool", "submit", output, "--keychain-profile", profile, "--wait",
+            *(["--keychain", keychain] if keychain else []))
         run("xcrun", "stapler", "staple", output)
     return output
 
