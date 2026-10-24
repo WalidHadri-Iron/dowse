@@ -18,6 +18,7 @@ import uuid
 from collections.abc import Callable
 
 from ..watcher import Changes, FolderWatcher
+from .. import paths
 
 log = logging.getLogger("dowse.screenshots")
 
@@ -113,7 +114,7 @@ class ScreenshotWatcher:
             batch = self.changes.take()
             fresh = [p for p in [*batch.paths, *(new for _, new in batch.renames)] if self._new(p)]
             if fresh:
-                self._seen.update(os.path.normcase(p) for p in fresh)
+                self._seen.update(paths.fold(p) for p in fresh)
                 try:
                     self.on_new(fresh)
                 except Exception:
@@ -121,9 +122,9 @@ class ScreenshotWatcher:
 
     def _new(self, path: str) -> bool:
         """A picture made since the switch went on, in a screenshot folder itself, not seen before."""
-        if not path.lower().endswith(PICTURES) or os.path.normcase(path) in self._seen:
+        if not path.lower().endswith(PICTURES) or paths.fold(path) in self._seen:
             return False
-        if os.path.normcase(os.path.dirname(path)) not in {os.path.normcase(r) for r in self.roots}:
+        if paths.fold(os.path.dirname(path)) not in {paths.fold(r) for r in self.roots}:
             return False
         try:
             made = os.stat(path).st_ctime   # (Windows: when the file was created)

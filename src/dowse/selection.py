@@ -12,6 +12,7 @@ import functools
 import os
 from dataclasses import dataclass, replace
 from enum import Enum
+from . import paths
 
 INCLUDE, EXCLUDE = "include", "exclude"
 
@@ -20,7 +21,7 @@ INCLUDE, EXCLUDE = "include", "exclude"
 def norm(path: str) -> str:
     """A path as compared (Windows: case-insensitive, one kind of slash, no trailing separator). Remembered: every
     result, browse page and map piece asks about its path (75,000 times for 10,700 files listed once)."""
-    return os.path.normcase(os.path.abspath(path)).rstrip("\\/")
+    return paths.fold(os.path.abspath(path)).rstrip("\\/")
 
 
 def inside(path: str, folder: str) -> bool:

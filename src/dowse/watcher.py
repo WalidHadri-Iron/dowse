@@ -20,6 +20,7 @@ import time
 from collections.abc import Callable
 from ctypes import wintypes
 from dataclasses import dataclass, field
+from . import paths
 
 FILE_LIST_DIRECTORY = 0x0001
 SHARE_ALL = 0x1 | 0x2 | 0x4                       # read, write, delete: never in anyone's way
@@ -378,7 +379,7 @@ class FolderWatcher:
         roots = sorted({os.path.abspath(r) for r in roots}, key=lambda r: len(r))
         out: list[str] = []
         for root in roots:
-            if not any(os.path.normcase(root).startswith(os.path.normcase(o).rstrip("\\/") + os.sep) for o in out):
+            if not any(paths.fold(root).startswith(paths.fold(o).rstrip("\\/") + os.sep) for o in out):
                 out.append(root)
         return out
 
@@ -386,9 +387,9 @@ class FolderWatcher:
         """Watches `roots` with all they hold, and `singles` (folders, not what's under them) unless a root covers
         them; only those there now (the others stay on `missing`). Stops watching any others."""
         trees = [r for r in self.outermost(roots) if os.path.isdir(r)]
-        covered = [os.path.normcase(r).rstrip("\\/") for r in trees]
+        covered = [paths.fold(r).rstrip("\\/") for r in trees]
         lone = sorted({os.path.abspath(s) for s in singles if os.path.isdir(s) and not any(
-            os.path.normcase(os.path.abspath(s)) == c or os.path.normcase(os.path.abspath(s)).startswith(c + os.sep)
+            paths.fold(os.path.abspath(s)) == c or paths.fold(os.path.abspath(s)).startswith(c + os.sep)
             for c in covered)})[:self.MAX_SINGLES]
         wanted = {r: True for r in trees} | {s: False for s in lone}
         for root in list(self._watches):

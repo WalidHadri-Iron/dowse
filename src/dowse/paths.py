@@ -3,6 +3,7 @@ $XDG_DATA_HOME/dowse elsewhere, or $DOWSE_HOME."""
 
 import os
 import sys
+import unicodedata
 from pathlib import Path
 
 
@@ -35,3 +36,14 @@ def logs() -> Path:
     return home() / "Logs"
 
 
+
+
+def fold(path: str) -> str:
+    """A path as the system compares it. Windows ignores letter case (and takes either slash); so does a Mac's disk by
+    default, which also ignores how an accent is written (é as one character, or e and an accent). Elsewhere a path
+    is compared as written."""
+    if sys.platform == "win32":
+        return os.path.normcase(path)
+    if sys.platform == "darwin":
+        return unicodedata.normalize("NFC", path).lower()
+    return path

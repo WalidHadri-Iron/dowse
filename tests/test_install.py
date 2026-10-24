@@ -364,3 +364,11 @@ def test_each_system_keeps_dowse_where_its_apps_keep_their_things(monkeypatch, t
     assert paths.home() == tmp_path / ".local" / "share" / "dowse"
     monkeypatch.setenv("DOWSE_HOME", str(tmp_path / "chosen"))
     assert paths.home() == tmp_path / "chosen"
+
+
+def test_paths_are_compared_the_way_each_system_does(monkeypatch):
+    from dowse import paths
+    monkeypatch.setattr(paths.sys, "platform", "darwin")
+    assert paths.fold("/Users/Me/Photos/Été") == paths.fold("/users/me/photos/E\u0301te\u0301")   # case, accent form
+    monkeypatch.setattr(paths.sys, "platform", "linux")
+    assert paths.fold("/home/Me") != paths.fold("/home/me")   # Linux file names are case-sensitive

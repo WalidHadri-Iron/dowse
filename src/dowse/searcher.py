@@ -84,6 +84,7 @@ from . import dates, probes, search_scope, searchtext
 from .embedder import DIM
 from .rules import Kind
 from .store import Store
+from . import paths
 
 BLOCK = 16384
 LIKE_VECTORS = 16   # how many of an example's vectors search for what's like it (evenly spread through it)
@@ -298,10 +299,10 @@ class Searcher:
     def _under(self, folder: str) -> set[int]:
         """The files under `folder`, compared as Windows does (any case, either slash), kept for the next keystroke
         (a searcher lives until the index changes)."""
-        key = os.path.normcase(os.path.abspath(folder)).rstrip("\\/") + os.sep
+        key = paths.fold(os.path.abspath(folder)).rstrip("\\/") + os.sep
         if key not in self._scopes:
             self._scopes[key] = {file for file, path in self.store.db.execute("SELECT id, path FROM files")
-                                 if os.path.normcase(path).startswith(key)}
+                                 if paths.fold(path).startswith(key)}
         return self._scopes[key]
 
     def scores(self, query: np.ndarray) -> np.ndarray:

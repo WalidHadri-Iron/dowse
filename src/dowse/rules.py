@@ -6,6 +6,7 @@ import stat
 from dataclasses import dataclass
 from enum import StrEnum
 from pathlib import PurePath
+from . import paths
 
 
 class Kind(StrEnum):
@@ -42,7 +43,11 @@ PROJECT_MARKERS = frozenset([
 ])
 PROJECT_EXTENSIONS = frozenset(["sln", "csproj", "vcxproj", "fsproj", "xcodeproj"])
 
-SCREENSHOT_PREFIXES = ("screenshot", "screen shot", "capture", "snip", "cleanshot", "scr-", "sharex")
+SCREENSHOT_PREFIXES = ("screenshot", "screen shot", "capture", "snip", "cleanshot", "scr-", "sharex",
+                       # how macOS (and Windows) name them in other languages: German, Spanish/Portuguese, Italian,
+                       # Dutch, Swedish, Polish, Turkish, Russian, Japanese, Korean, Chinese
+                       "bildschirmfoto", "captura de", "schermata", "schermafbeelding", "skärmavbild", "zrzut ekranu",
+                       "ekran resmi", "снимок экрана", "スクリーンショット", "스크린샷", "截屏", "屏幕快照", "螢幕截圖")
 SCREENSHOT_FOLDERS = frozenset(["screenshots", "screen captures"])
 
 SECRET_EXTENSIONS = frozenset("pem key p12 pfx keystore jks ppk kdbx gpg asc crt cer der p8".split())
@@ -145,8 +150,8 @@ def folder_skip_reason(path: str, attrs: int, excluded: list[str]) -> str | None
         return "hidden folder"
     if lower.endswith(".noindex"):
         return ".noindex folder"
-    full = os.path.normcase(path)
-    if any(full == os.path.normcase(e) or full.startswith(os.path.normcase(e).rstrip("\\/") + os.sep) for e in excluded):
+    full = paths.fold(path)
+    if any(full == paths.fold(e) or full.startswith(paths.fold(e).rstrip("\\/") + os.sep) for e in excluded):
         return "excluded folder"
     return None
 

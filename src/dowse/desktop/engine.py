@@ -175,7 +175,7 @@ class SearchEngine:
             facts = os.stat(path)
         except OSError as error:
             raise Unreadable("Dowse can't open this file.") from error
-        key = key or (os.path.normcase(path), facts.st_size, facts.st_mtime)
+        key = key or (paths.fold(path), facts.st_size, facts.st_mtime)
         if key in self._examples:
             self._examples.move_to_end(key)
             return self._examples[key]

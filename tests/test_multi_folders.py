@@ -33,8 +33,9 @@ def test_single_folder_compatibility_and_no_duplicate_hits_for_overlapping_folde
     running, root, _ = app
     legacy = search(running, str(root))
     one = search(running, [str(root)])
-    # the same folder written another way: on Windows other letter case and a trailing backslash, elsewhere a trailing slash
-    same = str(root).upper() + "\\" if sys.platform == "win32" else str(root) + os.sep
+    # the same folder written another way: on Windows other letter case and a trailing backslash; on a Mac (whose disk
+    # ignores case) other letter case and a trailing slash; elsewhere a trailing slash
+    same = {"win32": str(root).upper() + "\\", "darwin": str(root).upper() + os.sep}.get(sys.platform, str(root) + os.sep)
     overlap = search(running, [str(root), str(root / "notes"), same])
     assert one["hits"] == legacy["hits"] == overlap["hits"]
     assert len(overlap["filters"]) == 2  # equivalent spellings deduplicated; parent/child retained

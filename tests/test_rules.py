@@ -12,6 +12,10 @@ def test_classify():
     assert rules.classify(os.path.join("x", "IMG_1234.JPG")) is Kind.IMAGE
     assert rules.classify(os.path.join("x", "Screenshot (12).png")) is Kind.SCREENSHOT
     assert rules.classify(os.path.join("Users", "me", "Pictures", "Screenshots", "anything.png")) is Kind.SCREENSHOT
+    for name in ("Screenshot 2026-10-24 at 14.03.11.png", "Bildschirmfoto 2026-10-24 um 14.03.11.png",
+                 "Captura de pantalla 2026-10-24 a las 14.03.11.png", "Capture d’écran 2026-10-24 à 14.03.11.png",
+                 "Schermata 2026-10-24 alle 14.03.11.png", "スクリーンショット 2026-10-24 14.03.11.png"):
+        assert rules.classify(os.path.join("Users", "me", "Desktop", name)) is Kind.SCREENSHOT, name
     assert rules.classify("lease.pdf") is Kind.PDF
     assert rules.classify("minutes.docx") is Kind.DOC
     assert rules.classify("song.mp3") is Kind.AUDIO

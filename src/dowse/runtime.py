@@ -198,7 +198,7 @@ _job = None
 def _die_with_us(process: subprocess.Popen) -> None:
     """Ties a child process's life to this one's: it's put in a Windows job object that kills its processes when
     the job's last handle closes, which happens when this process ends, however it ends (Ctrl+C, a crash, Task
-    Manager). Without it, a killed Dowse leaves llama-server holding the GPU's memory."""
+    Manager). Without it, a killed Dowse leaves llama-server holding the GPU's memory. (Elsewhere: `childguard`.)"""
     global _job
     if sys.platform != "win32":
         return
@@ -456,9 +456,15 @@ class Server:
         self.port = _free_port()
         self.log_path.parent.mkdir(parents=True, exist_ok=True)
         log = self.log_path.open("wb")
-        self.process = subprocess.Popen(self.command(), stdout=log, stderr=subprocess.STDOUT,
-                                        stdin=subprocess.DEVNULL, **_no_window())
-        _die_with_us(self.process)
+        if sys.platform == "win32":
+            self.process = subprocess.Popen(self.command(), stdout=log, stderr=subprocess.STDOUT,
+                                            stdin=subprocess.DEVNULL, **_no_window())
+            _die_with_us(self.process)
+        else:
+            # No job object outside Windows: a guard holds a pipe this process keeps open, and stops the server when
+            # it closes, however this process ends (`childguard`).
+            self.process = subprocess.Popen([sys.executable, "-m", "dowse.childguard", *self.command()],
+                                            stdout=log, stderr=subprocess.STDOUT, stdin=subprocess.PIPE)
         log.close()
         deadline = time.monotonic() + timeout
         while time.monotonic() < deadline:
@@ -487,9 +493,11 @@ class Server:
         if self.process and self.process.poll() is None:
             self.process.terminate()
             try:
-                self.process.wait(10)
+                self.process.wait(15)   # (outside Windows the guard gives the server 10 s, then kills it)
             except subprocess.TimeoutExpired:
                 self.process.kill()
+        if self.process and self.process.stdin:
+            self.process.stdin.close()
         self.process = None
 
     def __enter__(self) -> "Server":

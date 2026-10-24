@@ -91,8 +91,8 @@ def _merge(source: Path, target: Path) -> bool:
 
 
 def _moved(path: str, old: str, new: str) -> str:
-    folded = os.path.normcase(path)
-    if folded == os.path.normcase(old) or folded.startswith(os.path.normcase(old) + os.sep):
+    folded = paths.fold(path)
+    if folded == paths.fold(old) or folded.startswith(paths.fold(old) + os.sep):
         return new + path[len(old):]
     return path
 

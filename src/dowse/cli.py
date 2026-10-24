@@ -353,7 +353,7 @@ def cmd_similar(args) -> None:
 def _expected(hit, base: Path, expect: str) -> bool:
     """"photos/a.jpg" matches the file; "talk.mp3@30-55" only a hit whose moment overlaps 30–55 s."""
     path, _, moment = expect.partition("@")
-    if os.path.normcase(hit.path) != os.path.normcase(str(base / path)):
+    if paths.fold(hit.path) != paths.fold(str(base / path)):
         return False
     if not moment:
         return True
