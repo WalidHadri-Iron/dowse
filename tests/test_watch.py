@@ -19,7 +19,7 @@ from dowse.watcher import Changes, FolderWatcher
 from test_index import FakeEmbedder
 
 windows = pytest.mark.skipif(sys.platform != "win32", reason="watching folders needs Windows")
-watches = pytest.mark.skipif(sys.platform not in ("win32", "darwin"), reason="watching folders needs Windows or macOS")
+watches = pytest.mark.skipif(sys.platform not in ("win32", "darwin", "linux"), reason="no folder watcher on this system")
 
 
 def photo(path, shade: int = 7) -> None:
@@ -225,6 +225,41 @@ def test_the_watcher_reports_an_overflow(tmp_path, monkeypatch):
         for i in range(300):
             (tmp_path / f"file_{i:04d}_with_a_long_name_to_fill_the_buffer.txt").write_text("x")
         wait_for(lambda: changes._overflowed)
+    finally:
+        folder.stop()
+
+
+@watches
+def test_new_and_renamed_folders_are_watched_inside(tmp_path):
+    """inotify watches one folder at a time: a folder made while watching is watched from then on, and one renamed
+    keeps its watch under its new name (Windows and macOS watch the tree: the same answers)."""
+    changes = Changes(quiet=0.2)
+    folder = FolderWatcher(changes)
+    folder.watch([str(tmp_path)])
+    try:
+        (tmp_path / "new").mkdir()
+        wait_for(lambda: str(tmp_path / "new") in changes._paths)
+        time.sleep(0.3)                                    # (the new folder's watch begins)
+        photo(tmp_path / "new" / "a.png")
+        wait_for(lambda: str(tmp_path / "new" / "a.png") in changes._paths)
+        os.replace(tmp_path / "new", tmp_path / "trip")
+        wait_for(lambda: (str(tmp_path / "new"), str(tmp_path / "trip")) in changes._renames)
+        photo(tmp_path / "trip" / "b.png")
+        wait_for(lambda: str(tmp_path / "trip" / "b.png") in changes._paths)
+    finally:
+        folder.stop()
+
+
+@pytest.mark.skipif(not sys.platform.startswith("linux"), reason="inotify")
+def test_folders_the_crawl_skips_get_no_watch(tmp_path):
+    (tmp_path / "node_modules" / "left-pad").mkdir(parents=True)
+    (tmp_path / ".cache").mkdir()
+    (tmp_path / "photos" / "2024").mkdir(parents=True)
+    folder = FolderWatcher(Changes(quiet=0.2))
+    folder.watch([str(tmp_path)])
+    try:
+        watched = set(folder._watches[str(tmp_path)]._folders.values())
+        assert watched == {str(tmp_path), str(tmp_path / "photos"), str(tmp_path / "photos" / "2024")}
     finally:
         folder.stop()
 

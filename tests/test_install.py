@@ -6,6 +6,7 @@ import http.server
 import json
 import os
 import shutil
+import subprocess
 import sys
 import threading
 from pathlib import Path
@@ -351,6 +352,31 @@ def test_a_mac_runs_its_gpu_through_metal_from_the_same_build_as_the_processor(m
     assert assets["metal"][0].endswith("-bin-macos-arm64.tar.gz")
     monkeypatch.setattr(runtime.platform, "machine", lambda: "x86_64")
     assert set(runtime._platform_assets()) == {"cpu"}   # an Intel Mac: the processor
+
+
+def test_linux_runs_on_the_processor_or_vulkan_for_its_architecture(monkeypatch):
+    monkeypatch.setattr(runtime.sys, "platform", "linux")
+    monkeypatch.setattr(runtime.platform, "machine", lambda: "x86_64")
+    assert runtime._platform_assets() == {"cpu": [f"llama-{runtime.TAG}-bin-ubuntu-x64.tar.gz"],
+                                          "vulkan": [f"llama-{runtime.TAG}-bin-ubuntu-vulkan-x64.tar.gz"]}
+    monkeypatch.setattr(runtime.platform, "machine", lambda: "aarch64")
+    assert runtime._platform_assets()["vulkan"] == [f"llama-{runtime.TAG}-bin-ubuntu-vulkan-arm64.tar.gz"]
+
+
+def test_linux_knows_a_cards_own_memory(monkeypatch, tmp_path):
+    """NVIDIA's from nvidia-smi, AMD's from its driver; an APU's small carve-out isn't a graphics card worth it."""
+    def smi(command, **_):
+        assert command[0] == "nvidia-smi"
+        return subprocess.CompletedProcess(command, 0, "NVIDIA GeForce RTX 4070 Ti, 12282\n", "")
+    monkeypatch.setattr(runtime.subprocess, "run", smi)
+    for card, vram in (("card0", 8 << 30), ("card1", 512 << 20)):
+        (tmp_path / card / "device").mkdir(parents=True)
+        (tmp_path / card / "device" / "mem_info_vram_total").write_text(str(vram))
+    (tmp_path / "card0-DP-1").mkdir()
+    found = runtime._linux_cards(tmp_path)
+    assert found == {"NVIDIA GeForce RTX 4070 Ti": 12282, "AMD graphics (card0)": 8192, "AMD graphics (card1)": 512}
+    big = {name for name, mb in found.items() if mb >= runtime.MIN_DEDICATED_MB}
+    assert big == {"NVIDIA GeForce RTX 4070 Ti", "AMD graphics (card0)"}
 
 
 def test_each_system_keeps_dowse_where_its_apps_keep_their_things(monkeypatch, tmp_path):

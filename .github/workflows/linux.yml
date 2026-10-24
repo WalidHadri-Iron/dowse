@@ -1,0 +1,92 @@
+# Dowse on Linux (x64, Ubuntu): the interface's checks and the tests (Tesseract installed, for the OCR test), then the
+# reference vectors on the processor and on Vulkan. A hosted runner has no GPU: Vulkan runs on Mesa's software driver
+# (lavapipe), which shows the Vulkan build loads and computes the same vectors; a real GPU's speed isn't measured here.
+name: Linux
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: linux-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: "3.12"
+          enable-cache: true
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - name: The interface
+        working-directory: web
+        run: |
+          npm ci
+          npm run check
+          npm test
+          npm run build
+
+      - name: Tesseract (the OCR Dowse uses on Linux, when it's installed)
+        run: sudo apt-get update -q && sudo apt-get install -yq tesseract-ocr
+
+      - name: The tests (without a model server)
+        run: |
+          uv sync
+          uv run python -c "import platform, dowse; print(platform.platform(), platform.machine(), 'dowse', dowse.__version__)"
+          uv run pytest -q -m "not server"
+
+  # The vectors Linux makes must be the reference's (tests/reference: cosine ≥ 0.999), or a Linux index would disagree
+  # with everyone else's.
+  reference:
+    needs: test
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      DOWSE_HOME: ${{ github.workspace }}/.dowse-home
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: "3.12"
+          enable-cache: true
+
+      - name: Cache the model (865 MB)
+        uses: actions/cache@v4
+        with:
+          path: .dowse-home/Models
+          key: dowse-models-${{ hashFiles('src/dowse/modelfiles.py') }}
+
+      - name: The model and the processor's runtime
+        run: |
+          uv sync
+          uv run dowse setup --backend cpu
+
+      - name: Reference vectors on the processor
+        run: DOWSE_BACKEND=cpu uv run pytest -q tests/test_reference.py
+
+      - name: Reference vectors on Vulkan (Mesa's software driver)
+        run: |
+          sudo apt-get update -q && sudo apt-get install -yq mesa-vulkan-drivers libvulkan1
+          uv run dowse setup --backend vulkan
+          "$(uv run python -c 'from dowse import runtime; print(runtime.executable("vulkan"))')" --list-devices || true
+          DOWSE_BACKEND=vulkan uv run pytest -q tests/test_reference.py
+
+      - name: Indexed and searched from the command line
+        run: |
+          uv run dowse index tests/reference
+          uv run dowse search "a lake between the mountains" | tee search.txt
+          grep -q "landscape.jpg" search.txt
