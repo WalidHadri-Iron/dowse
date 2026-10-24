@@ -172,7 +172,9 @@ class Server:
                 if parts.path == "/api/events":
                     return self._events()
                 handler = server.routes.get((method, parts.path))
-                if handler is not None and parts.path != "/api/request":   # (a launch from outside isn't a person here)
+                # A person using Dowse makes reading files wait (foreground.py): not a launch from outside, nor a refresh
+                # the page made by itself after indexing (X-Dowse-Background), which would slow the very reading it follows.
+                if handler is not None and parts.path != "/api/request" and self.headers.get("X-Dowse-Background") != "1":
                     server.on_request()
                 if handler is None:
                     return self._send(404, b"no such route", "text/plain")

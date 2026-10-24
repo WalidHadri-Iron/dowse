@@ -84,6 +84,27 @@ def test_the_server_answers_only_its_own_pages(tmp_path):
         server.stop()
 
 
+def test_a_refresh_the_page_makes_itself_does_not_count_as_the_person_using_dowse(tmp_path):
+    """Reading files steps aside while the person uses Dowse; the page's own refreshes after indexing (issue #1) must
+    not count, or they'd slow the very reading they follow."""
+    server = Server(static=tmp_path)
+    touches = []
+    server.on_request = lambda: touches.append(1)
+
+    @server.route("POST", "/api/search")
+    def search(_):
+        return {"hits": []}
+
+    server.start()
+    try:
+        assert request(server, "POST", "/api/search", {"q": "photo"})[0] == 200
+        assert len(touches) == 1                                   # the person searched
+        assert request(server, "POST", "/api/search", {"q": "photo"}, headers={"X-Dowse-Background": "1"})[0] == 200
+        assert len(touches) == 1                                   # the page refreshed by itself
+    finally:
+        server.stop()
+
+
 # The app's routes, over a real index
 
 @pytest.fixture

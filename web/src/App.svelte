@@ -49,7 +49,7 @@
   });
   $effect(() => { if (dowse.state?.model === "ready") untrack(() => search.modelReady()); });
   $effect(() => {
-    if (dowse.indexVersion) untrack(() => search.searching ? search.run() : search.loadBrowse());
+    if (dowse.indexVersion) untrack(() => search.indexChanged());   // quietly: never a reshuffle under the person's eyes
   });
   const searchView = $derived(dowse.path === "/search" || dowse.path === "/popup");
   $effect(() => {

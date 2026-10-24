@@ -170,10 +170,15 @@ export interface ModelJob {
   error: string | null;
 }
 
-async function call<T>(method: "GET" | "POST", path: string, body?: unknown, signal?: AbortSignal): Promise<T> {
+/** `background`: a refresh the page made by itself, not something the person did; the app doesn't count it as Dowse
+ * being in use (which makes reading files wait). */
+async function call<T>(method: "GET" | "POST", path: string, body?: unknown, signal?: AbortSignal, background = false): Promise<T> {
+  const headers: Record<string, string> = {};
+  if (body) headers["Content-Type"] = "application/json";
+  if (background) headers["X-Dowse-Background"] = "1";
   const response = await fetch(path, {
     method,
-    headers: body ? { "Content-Type": "application/json" } : undefined,
+    headers,
     body: body ? JSON.stringify(body) : undefined,
     credentials: "same-origin",
     signal,
@@ -197,13 +202,15 @@ export const api = {
   },
   state: () => call<AppState>("GET", "/api/state"),
   searchFolders: (signal?: AbortSignal) => call<{ folders: SearchFolder[] }>("GET", "/api/search/folders", undefined, signal),
-  search: (q: string, kinds: Kind[], within: string | string[] | null, signal?: AbortSignal, limit = 60, options?: SearchOptions) =>
-    call<Answer>("POST", "/api/search", { q, kinds, within, limit, ...options }, signal),
+  search: (q: string, kinds: Kind[], within: string | string[] | null, signal?: AbortSignal, limit = 60, options?: SearchOptions,
+           background = false) =>
+    call<Answer>("POST", "/api/search", { q, kinds, within, limit, ...options }, signal, background),
   warm: () => call("POST", "/api/warm", {}),
   /** More like a file of the index (at a place in it: a page, a passage, seconds), or a file on disk. */
   similar: (path: string, loc: number | null, kinds: Kind[], within: string[], date: SearchOptions["date"],
-            signal?: AbortSignal, limit = 60) =>
-    call<Answer>("POST", "/api/similar", { path, loc, kinds, within: within.length ? scopePaths(within) : null, date, limit }, signal),
+            signal?: AbortSignal, limit = 60, background = false) =>
+    call<Answer>("POST", "/api/similar", { path, loc, kinds, within: within.length ? scopePaths(within) : null, date, limit },
+                 signal, background),
   /** More like a file dropped on the window: sent whole (a copy of a file of the index stands for that file). */
   async similarFile(file: File, kinds: Kind[], within: string[], date: SearchOptions["date"], signal?: AbortSignal): Promise<Answer> {
     const params = new URLSearchParams({ name: file.name });
@@ -225,13 +232,14 @@ export const api = {
   history: (q = "", signal?: AbortSignal) =>
     call<{ recent: Hit[]; queries: PastQuery[] }>("GET", `/api/history?q=${encodeURIComponent(q)}`, undefined, signal),
   clearHistory: () => call("POST", "/api/history/clear", {}),
-  browse: (within: string[], kinds: Kind[], date: SearchOptions["date"], offset = 0, limit = 80, signal?: AbortSignal) => {
+  browse: (within: string[], kinds: Kind[], date: SearchOptions["date"], offset = 0, limit = 80, signal?: AbortSignal,
+           background = false) => {
     const params = new URLSearchParams({ limit: String(limit), offset: String(offset) });
     if (within.length) params.set("folders", JSON.stringify(scopePaths(within)));
     if (kinds.length) params.set("kinds", kinds.join(","));
     if (date?.from) params.set("from", date.from);
     if (date?.to) params.set("to", date.to);
-    return call<BrowsePage>("GET", `/api/browse?${params}`, undefined, signal);
+    return call<BrowsePage>("GET", `/api/browse?${params}`, undefined, signal, background);
   },
   recent: (within: string | string[] | null, limit = 40, kinds: Kind[] = [], date: SearchOptions["date"] = null) => {
     const params = new URLSearchParams({ limit: String(limit) });

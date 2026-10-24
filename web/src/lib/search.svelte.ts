@@ -13,6 +13,14 @@ import { hasClearMatch } from "./search-confidence";
 import { focusedHits } from "./search-presentation";
 import { completion, openedFirst } from "./history";
 
+/** The most often the results on screen are refreshed while files are being read. */
+const REFRESH_MS = 5000;
+
+/** The same files, in the same order: showing them again would change nothing. */
+function samePaths(a: Hit[], b: Hit[]): boolean {
+  return a.length === b.length && a.every((hit, i) => hit.path === b[i].path && hit.loc === b[i].loc);
+}
+
 /** What "more like this" searches with: a file of the index (a place in it), or a dropped file and its picture. */
 export interface Like extends LikeTarget { file?: File; preview?: string }
 
@@ -36,6 +44,9 @@ export class Search {
   selected = $state(0);
   busy = $state(false);
   showCandidates = $state(false);
+  /** Fresher results for the search on screen, found while files were being read: offered, never swapped in under the
+   * person's eyes (the gallery would reshuffle every few seconds while indexing). */
+  pending = $state<Answer | null>(null);
 
   private controller: AbortController | null = null;
   private timer = 0;
@@ -48,6 +59,9 @@ export class Search {
   private browseScope = "";
   private loadedBrowseScope = "";
   private browseTarget = 0;
+  private refreshTimer = 0;
+  private lastRefresh = 0;
+  private refreshController: AbortController | null = null;
 
   constructor(private limit = 60) {}
 
@@ -180,6 +194,7 @@ export class Search {
     this.historyController?.abort();
     this.controller?.abort();   // invalidate the old query as soon as typing changes, including the debounce gap
     this.controller = null;     // its finally cannot clear the new request's pending state
+    this.dropPending();
     // Typing does not invalidate the background collection; only its actual filters do.
     const scope = JSON.stringify([this.within, this.kinds, this.date]);
     if (this.browseScope !== scope) { this.browseController?.abort(); this.browseBusy = false; }
@@ -198,6 +213,7 @@ export class Search {
     clearTimeout(this.timer);
     if (!this.searching) { this.schedule(0); return; }
     this.controller?.abort();
+    this.dropPending();
     const controller = new AbortController();
     this.controller = controller;
     const keep = this.current?.path;
@@ -229,6 +245,53 @@ export class Search {
     }
   }
 
+  /** What was indexed changed (files read, changed, chosen…). At most every REFRESH_MS: a search on screen is fetched
+   * again quietly and only offered if it differs; the collection is reloaded only if its files differ. */
+  indexChanged(): void {
+    clearTimeout(this.refreshTimer);
+    const wait = Math.max(0, this.lastRefresh + REFRESH_MS - Date.now());
+    this.refreshTimer = window.setTimeout(() => {
+      this.lastRefresh = Date.now();
+      if (this.searching) void this.refresh();
+      else void this.loadBrowse(this.browseOffset, null, true);
+    }, wait);
+  }
+
+  private async refresh(): Promise<void> {
+    if (this.busy || this.like?.file) return;   // a search is under way (it will be fresh), or a dropped file (read once)
+    if (!this.answer) { void this.run(); return; }
+    this.refreshController?.abort();
+    const request = new AbortController(); this.refreshController = request;
+    const shown = this.answer;
+    const like = this.like;
+    try {
+      const answer = !like ? await api.search(this.query, this.kinds, this.within, request.signal, this.limit, this.options, true)
+        : await api.similar(like.path!, like.loc, this.kinds, this.within, this.date, request.signal, this.limit, true);
+      if (request.signal.aborted || this.answer !== shown || this.like !== like) return;   // another search since
+      if (samePaths(answer.hits, shown.hits)) { this.pending = null; return; }            // nothing would move
+      if (!shown.hits.length) { this.answer = answer; return; }                          // nothing to keep in place
+      this.pending = answer;
+    } catch { /* a refresh is a convenience: what's shown stays */ }
+    finally { if (this.refreshController === request) this.refreshController = null; }
+  }
+
+  /** The offered fresher results, shown (the person asked for them). */
+  showPending(): void {
+    const answer = this.pending;
+    if (!answer) return;
+    const keep = this.current?.path;
+    this.pending = null;
+    this.answer = answer;
+    const index = this.hits.findIndex((hit) => hit.path === keep);
+    this.selected = index >= 0 ? index : 0;
+  }
+
+  private dropPending(): void {
+    this.refreshController?.abort();
+    this.refreshController = null;
+    this.pending = null;
+  }
+
   async loadRecent(): Promise<void> {
     const scope = JSON.stringify([this.within, this.kinds, this.date]);
     if (this.browseBusy && this.browseScope === scope && this.browseTarget === 0) return;
@@ -252,7 +315,9 @@ export class Search {
   /** History was cleared or switched off. */
   forgetHistory(): void { this.opened = []; this.pastQueries = []; }
 
-  async loadBrowse(offset = this.browseOffset, edge: "first" | "last" | null = null): Promise<void> {
+  /** `background`: a refresh after indexing, which changes nothing on screen unless the page's files changed. */
+  async loadBrowse(offset = this.browseOffset, edge: "first" | "last" | null = null, background = false): Promise<void> {
+    if (background && this.browseBusy) return;   // a load is under way: it is fresh
     const version = ++this.recentVersion;
     this.browseController?.abort();
     const request = new AbortController(); this.browseController = request;
@@ -262,9 +327,9 @@ export class Search {
     const keep = this.current?.path;
     this.browseBusy = true; this.browseError = "";
     try {
-      const answer = await api.browse(within, kinds, date, offset, BROWSE_PAGE_SIZE, request.signal);
+      const answer = await api.browse(within, kinds, date, offset, BROWSE_PAGE_SIZE, request.signal, background);
       if (version !== this.recentVersion || request.signal.aborted) return;
-      this.recent = answer.hits;
+      if (!background || !samePaths(answer.hits, this.recent)) this.recent = answer.hits;
       this.browseTotal = answer.total; this.browseOffset = answer.offset; this.browseMore = answer.hasMore;
       this.browseLoaded = true;
       this.loadedBrowseScope = scope;

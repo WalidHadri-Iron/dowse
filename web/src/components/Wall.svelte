@@ -66,6 +66,9 @@
   let foregroundDistance = 0, focusDepth = 0;
   const reduced = matchMedia("(prefers-reduced-motion: reduce)").matches;
 
+  /** Where a case stands and how it shows: place, scale, opacity. */
+  type Stance = { x: number; y: number; z: number; s: number; o: number };
+
   interface Vitrine {
     piece: Piece;
     group: THREE.Group;
@@ -77,9 +80,9 @@
     texel: { value: THREE.Vector2 };
     faceVersion: number;
     faceKey: string;
-    from: { x: number; y: number; z: number; s: number; o: number };
-    to: { x: number; y: number; z: number; s: number; o: number };
-    now: { x: number; y: number; z: number; s: number; o: number };
+    from: Stance;
+    to: Stance;
+    now: Stance;
     tilt: { x: number; y: number };
     tiltTo: { x: number; y: number };
     facing: number;   // its angle on the curved rack; the pointer's tilt is added to it
@@ -245,6 +248,7 @@
         removeVitrine(vitrine);
         vitrine = undefined;
       }
+      const created = !vitrine;
       if (!vitrine) {
         vitrine = makeVitrine(piece);
         vitrine.now = { x, y: cy, z: z - 2.4, s: 0.9, o: 0 };
@@ -265,20 +269,25 @@
         vitrine.faceKey = faceKey;
         face(vitrine);
       }
-      vitrine.from = { ...vitrine.now };
       // pulled forward: the strong ones come out of the rack; the weaker stay back, dimmer; the rest of the rack
       // stays where it stands, in the shade
-      vitrine.to = picked ? { x: picked.x * foregroundScale, y: picked.y * foregroundScale + groupLift,
+      const target = picked ? { x: picked.x * foregroundScale, y: picked.y * foregroundScale + groupLift,
           z: focusDepth, s: size * foregroundScale, o: piece.strong ? 1 : 0.9 }
         : piece.back ? { x, y: cy, z: z - 0.3, s: 1, o: 0.45 }
         : { x, y: cy, z: z + (piece.strong ? 0.35 : -0.1), s: size,
             o: piece.strong ? 1 : 0.8 };
-      vitrine.tag.dataset.depth = vitrine.to.z.toFixed(4);
+      // A case that stays where it is keeps its motion as it was: a new layout doesn't replay every entrance.
+      const moves = created || !sameStance(vitrine.to, target);
+      vitrine.tag.dataset.depth = target.z.toFixed(4);
       vitrine.tag.dataset.foregroundX = picked ? picked.x.toFixed(4) : "";
       vitrine.tag.dataset.foregroundY = picked ? picked.y.toFixed(4) : "";
       vitrine.facing = picked ? 0 : -angle;
-      vitrine.started = now;
-      vitrine.delay = reduced ? 0 : Math.min(rank, 24) * 28;
+      if (moves) {
+        vitrine.from = { ...vitrine.now };
+        vitrine.to = target;
+        vitrine.started = now;
+        vitrine.delay = reduced ? 0 : Math.min(rank, 24) * 28;
+      }
       order.push(vitrine);
     });
     // Search keeps the surrounding collection in frame, including when nothing was returned.
@@ -290,6 +299,12 @@
     if (layoutKey !== nextKey) panTo = { x: clamp(middle, bounds.x), y: centre };
     layoutKey = nextKey;
     wake();
+  }
+
+  /** Two stances close enough that moving between them wouldn't show. */
+  function sameStance(a: Stance | undefined, b: Stance): boolean {
+    return !!a && Math.abs(a.x - b.x) < 1e-3 && Math.abs(a.y - b.y) < 1e-3 && Math.abs(a.z - b.z) < 1e-3
+      && Math.abs(a.s - b.s) < 1e-3 && Math.abs(a.o - b.o) < 1e-3;
   }
 
   function removeVitrine(vitrine: Vitrine): void {

@@ -94,3 +94,73 @@ test('an old search response cannot undo a cleared or newer query',async()=>{
     assert.equal(s.answer,null);assert.equal(s.busy,false);await pause(5);
   } finally {dispose();}
 });
+
+// Issue #1: while files are being read, the index changes every second or two. The results on screen must not be
+// swapped (and the gallery reshuffled) each time: refreshes coalesce, go out as background requests, change nothing
+// when the files are the same, and are otherwise offered until the person asks for them.
+test('index changes coalesce into one background refresh; the same files change nothing on screen', async () => {
+  const {s,dispose}=fixture();const calls=[];
+  api.search=async(...args)=>{calls.push(args);return {query:args[0],hits:[hit(0),hit(1)],strong:2,terms:[]};};
+  try {
+    s.query='photo';s.schedule(0);await pause(5);flush();
+    const shown=s.answer;assert.equal(calls.length,1);
+    for(let i=0;i<10;i++) s.indexChanged();
+    await pause(20);flush();
+    assert.equal(calls.length,2,'ten index changes in a burst: one refresh');
+    assert.equal(calls[1][6],true,'the refresh says it is a background request');
+    assert.equal(s.answer,shown,'same files in the same order: the answer on screen is kept');
+    assert.equal(s.pending,null);
+    s.indexChanged();await pause(20);
+    assert.equal(calls.length,2,'another change within the refresh interval waits');
+  } finally {dispose();}
+});
+
+test('fresher results are offered, not swapped in; Show applies them and keeps the selection', async () => {
+  const {s,dispose}=fixture();let answerHits=[hit(0),hit(1),hit(2)];
+  api.search=async(q)=>({query:q,hits:answerHits,strong:answerHits.length,terms:[]});
+  try {
+    s.query='photo';s.schedule(0);await pause(5);flush();
+    s.selected=1;flush();
+    const shown=s.answer;
+    answerHits=[hit(5),hit(1),hit(0),hit(2)];
+    s.indexChanged();await pause(20);flush();
+    assert.equal(s.answer,shown,'what is shown stays put');
+    assert.ok(s.pending,'the fresher results are offered');
+    s.showPending();flush();
+    assert.equal(s.pending,null);
+    assert.deepEqual(s.answer.hits.map((h)=>h.path),answerHits.map((h)=>h.path));
+    assert.equal(s.current.path,hit(1).path,'the selected file stays selected');
+  } finally {dispose();}
+});
+
+test('a new search drops a stale offer; an empty result takes fresh results straight away', async () => {
+  const {s,dispose}=fixture();let answerHits=[];
+  api.search=async(q)=>({query:q,hits:answerHits,strong:answerHits.length,terms:[]});
+  try {
+    s.query='photo';s.schedule(0);await pause(5);flush();
+    assert.equal(s.answer.hits.length,0);
+    answerHits=[hit(0)];
+    s.indexChanged();await pause(20);flush();
+    assert.equal(s.pending,null,'nothing was shown: nothing to keep in place');
+    assert.equal(s.answer.hits.length,1);
+    answerHits=[hit(3),hit(0)];
+    await pause(5100);   // the next refresh, after the interval
+    s.indexChanged();await pause(20);flush();
+    assert.ok(s.pending);
+    s.query='photos';s.schedule(0);await pause(5);flush();
+    assert.equal(s.pending,null,'typing starts a search of its own: the old offer is gone');
+  } finally {dispose();}
+});
+
+test('the collection is reloaded after indexing only when its files changed', async () => {
+  const {s,dispose}=fixture();let pages=0;const flags=[];
+  api.browse=async(...args)=>{pages++;flags.push(args[6]);return {hits:[hit(0),hit(1)],total:2,offset:0,hasMore:false};};
+  try {
+    s.schedule();await pause(5);flush();
+    const shown=s.recent;
+    s.indexChanged();await pause(20);flush();
+    assert.equal(pages,2);
+    assert.equal(flags[1],true,'a background request');
+    assert.equal(s.recent,shown,'the same files: the collection on screen is kept');
+  } finally {dispose();}
+});

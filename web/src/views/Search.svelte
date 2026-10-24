@@ -101,6 +101,13 @@
   <div class="floor" class:list={layout === "list"}>
     <div class="finds">
       <div class="collection">
+      {#if search.pending && search.searching}
+        <!-- Files read since this search came in changed its results: offered, so the gallery holds still meanwhile. -->
+        <div class="fresh" role="status">
+          <span>Results updated</span>
+          <button class="act" onclick={() => search.showPending()}>Show</button>
+        </div>
+      {/if}
       {#if search.hits.length || (layout === "wall" && pieces.length)}
         {#if layout === "wall"}
           <Wall {pieces} collectionKeys={search.recent.map((hit) => hit.path)} selected={search.hits.length ? Math.min(search.selected, search.hits.length - 1) : -1} terms={search.answer?.terms ?? []}
@@ -152,6 +159,13 @@
   .floor { display: grid; grid-template-columns: minmax(0, 1fr) 400px; min-height: 0; }
   .finds { position: relative; min-width: 0; min-height: 0; display: grid; grid-template-rows: minmax(0, 1fr) auto; }
   .collection { position: relative; min-width: 0; min-height: 0; }
+  .fresh { position: absolute; top: var(--s-3); left: 50%; translate: -50% 0; z-index: 5; display: flex; align-items: center;
+    gap: var(--s-3); padding: 6px 6px 6px var(--s-4); background: var(--steel); color: var(--steel-ink);
+    border-radius: var(--r-field); box-shadow: var(--lift-3); font-size: var(--text-sm); white-space: nowrap;
+    animation: fresh-in var(--t-glide) var(--glide); }
+  .fresh .act { padding: 5px 12px; border-radius: 4px; background: var(--found); color: var(--steel); font-weight: 600; }
+  @keyframes fresh-in { from { opacity: 0; translate: -50% -8px; } }
+  @media (prefers-reduced-motion: reduce) { .fresh { animation: none; } }
   .collection-note { display: flex; align-items: center; min-height: 40px; padding: 5px var(--s-4);
     border-top: 1px solid var(--hairline); background: var(--floor-raised); color: var(--ink-2);
     font-size: var(--text-sm); font-variant-numeric: tabular-nums; }
