@@ -19,6 +19,7 @@ from dowse.watcher import Changes, FolderWatcher
 from test_index import FakeEmbedder
 
 windows = pytest.mark.skipif(sys.platform != "win32", reason="watching folders needs Windows")
+watches = pytest.mark.skipif(sys.platform not in ("win32", "darwin"), reason="watching folders needs Windows or macOS")
 
 
 def photo(path, shade: int = 7) -> None:
@@ -183,7 +184,7 @@ def test_one_writer_at_a_time(tmp_path):
 
 # Windows' notifications
 
-@windows
+@watches
 def test_the_watcher_reports_changes_and_renames(tmp_path):
     changes = Changes(quiet=0.2)
     folder = FolderWatcher(changes)
@@ -228,7 +229,23 @@ def test_the_watcher_reports_an_overflow(tmp_path, monkeypatch):
         folder.stop()
 
 
-@windows
+@watches
+def test_a_folder_of_named_files_is_watched_without_what_is_under_it(tmp_path):
+    (tmp_path / "sub").mkdir()
+    changes = Changes(quiet=0.2)
+    folder = FolderWatcher(changes)
+    folder.watch([], singles=[str(tmp_path)])
+    try:
+        (tmp_path / "sub" / "deeper.txt").write_text("x")
+        (tmp_path / "mine.txt").write_text("x")
+        wait_for(lambda: str(tmp_path / "mine.txt") in changes._paths)
+        time.sleep(0.6)
+        assert str(tmp_path / "sub" / "deeper.txt") not in changes._paths
+    finally:
+        folder.stop()
+
+
+@watches
 def test_the_watcher_notices_its_folder_going_away(tmp_path):
     root = tmp_path / "drive"
     root.mkdir()
@@ -245,7 +262,7 @@ def test_the_watcher_notices_its_folder_going_away(tmp_path):
 
 # The service
 
-@windows
+@watches
 def test_the_service_keeps_the_index_in_step(tmp_path):
     root = tmp_path / "files"
     photo(root / "IMG_1.png", 7)

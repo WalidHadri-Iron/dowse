@@ -1,4 +1,5 @@
-"""Folder changes, from Windows' own change journal for a folder tree (ReadDirectoryChangesW), settled into batches.
+"""Folder changes, from the system's own record of a folder tree (Windows: ReadDirectoryChangesW; macOS: FSEvents),
+settled into batches.
 
 One thread per chosen folder blocks in ReadDirectoryChangesW and records what changed in `Changes`; nothing else
 happens on those threads. A path is handed over once it has been quiet for a moment, its size has stopped moving and
@@ -6,7 +7,8 @@ it can be opened (a download being written, a document Word holds open), so the 
 
 Why not the `watchdog` package: on Windows it drops the one signal that matters most here. When changes come faster
 than the buffer holds (unzipping thousands of files), Windows says so with an empty read, and watchdog turns that into
-no events at all. Here it's `Batch.overflowed`, and the service crawls that folder again.
+no events at all. Here it's `Batch.overflowed`, and the service crawls that folder again. On a Mac, FSEvents says the
+same with "must scan subfolders" or "events dropped", and the same thing happens.
 """
 
 import ctypes
@@ -239,15 +241,135 @@ class _Watch(threading.Thread):
             self.handle = None
 
 
+# macOS: FSEvents (CoreServices), through ctypes as Windows' API is. One stream per folder, on its own thread's run loop.
+FS_NO_DEFER, FS_WATCH_ROOT, FS_FILE_EVENTS = 0x02, 0x04, 0x10                 # kFSEventStreamCreateFlag…
+FS_MUST_SCAN, FS_USER_DROPPED, FS_KERNEL_DROPPED = 0x01, 0x02, 0x04          # kFSEventStreamEventFlag…
+FS_ROOT_CHANGED, FS_UNMOUNT = 0x20, 0x80
+FS_CREATED, FS_REMOVED, FS_INODE_META, FS_RENAMED, FS_MODIFIED = 0x100, 0x200, 0x400, 0x800, 0x1000
+FS_IS_DIR = 0x20000
+FS_SINCE_NOW = 0xFFFFFFFFFFFFFFFF
+FS_LATENCY = 0.3   # seconds FSEvents gathers events before calling: they're settled here anyway (`Changes`)
+
+if sys.platform == "darwin":
+    _cf = ctypes.CDLL("/System/Library/Frameworks/CoreFoundation.framework/CoreFoundation")
+    _cs = ctypes.CDLL("/System/Library/Frameworks/CoreServices.framework/CoreServices")
+    _FSCALLBACK = ctypes.CFUNCTYPE(None, ctypes.c_void_p, ctypes.c_void_p, ctypes.c_size_t, ctypes.c_void_p,
+                                   ctypes.POINTER(ctypes.c_uint32), ctypes.POINTER(ctypes.c_uint64))
+    _cf.CFStringCreateWithCString.argtypes = [ctypes.c_void_p, ctypes.c_char_p, ctypes.c_uint32]
+    _cf.CFStringCreateWithCString.restype = ctypes.c_void_p
+    _cf.CFArrayCreate.argtypes = [ctypes.c_void_p, ctypes.POINTER(ctypes.c_void_p), ctypes.c_long, ctypes.c_void_p]
+    _cf.CFArrayCreate.restype = ctypes.c_void_p
+    _cf.CFRelease.argtypes = [ctypes.c_void_p]
+    _cf.CFRunLoopGetCurrent.restype = ctypes.c_void_p
+    _cf.CFRunLoopRun.restype = None
+    _cf.CFRunLoopStop.argtypes = [ctypes.c_void_p]
+    _cf.CFRunLoopWakeUp.argtypes = [ctypes.c_void_p]
+    _cs.FSEventStreamCreate.argtypes = [ctypes.c_void_p, _FSCALLBACK, ctypes.c_void_p, ctypes.c_void_p,
+                                        ctypes.c_uint64, ctypes.c_double, ctypes.c_uint32]
+    _cs.FSEventStreamCreate.restype = ctypes.c_void_p
+    _cs.FSEventStreamScheduleWithRunLoop.argtypes = [ctypes.c_void_p, ctypes.c_void_p, ctypes.c_void_p]
+    for _name in ("FSEventStreamStop", "FSEventStreamInvalidate", "FSEventStreamRelease"):
+        getattr(_cs, _name).argtypes = [ctypes.c_void_p]
+    _cs.FSEventStreamStart.argtypes = [ctypes.c_void_p]
+    _cs.FSEventStreamStart.restype = ctypes.c_bool
+    _DEFAULT_MODE = ctypes.c_void_p.in_dll(_cf, "kCFRunLoopDefaultMode").value
+
+
+class _MacWatch(threading.Thread):
+    """One folder, watched with FSEvents until `stop` (the same contract as `_Watch`). FSEvents names the real path
+    (/private/var/… for /var/…): it's given back under the folder as it was chosen, which is how the index knows it.
+    A rename arrives as two events, the old name then the new: paired back into one."""
+
+    def __init__(self, root: str, changes: Changes, recursive: bool = True):
+        super().__init__(name=f"watch {root}", daemon=True)
+        self.root, self.changes, self.recursive = root, changes, recursive
+        self.real = os.path.realpath(root)
+        self.stopping = False
+        self.started_ok = threading.Event()
+        self._loop = None
+        self._callback = _FSCALLBACK(self._events)   # kept: FSEvents calls it for the stream's whole life
+
+    def _chosen(self, path: str) -> str:
+        """`path` under the folder as it was chosen."""
+        real = self.real.rstrip("/")
+        if path == real or path.startswith(real + "/"):
+            return self.root.rstrip("/") + path[len(real):]
+        return path
+
+    def run(self) -> None:
+        name = _cf.CFStringCreateWithCString(None, self.real.encode("utf-8"), 0x08000100)   # kCFStringEncodingUTF8
+        paths = _cf.CFArrayCreate(None, (ctypes.c_void_p * 1)(name), 1, None)
+        stream = _cs.FSEventStreamCreate(None, self._callback, None, paths, FS_SINCE_NOW, FS_LATENCY,
+                                         FS_NO_DEFER | FS_WATCH_ROOT | FS_FILE_EVENTS)
+        _cf.CFRelease(paths)
+        _cf.CFRelease(name)
+        if not stream or not os.path.isdir(self.root):
+            self.changes.lose(self.root)
+            self.started_ok.set()
+            return
+        self._loop = _cf.CFRunLoopGetCurrent()
+        _cs.FSEventStreamScheduleWithRunLoop(stream, self._loop, _DEFAULT_MODE)
+        if not _cs.FSEventStreamStart(stream):
+            self.changes.lose(self.root)
+        else:
+            self.started_ok.set()
+            if not self.stopping:
+                _cf.CFRunLoopRun()   # returns when `stop` (or the folder going away) stops the loop
+            _cs.FSEventStreamStop(stream)
+        _cs.FSEventStreamInvalidate(stream)
+        _cs.FSEventStreamRelease(stream)
+        self.started_ok.set()
+
+    def _events(self, _stream, _info, count, paths, flags, ids) -> None:
+        names = ctypes.cast(paths, ctypes.POINTER(ctypes.c_char_p))
+        events = [(os.fsdecode(names[i]), flags[i], ids[i]) for i in range(count)]
+        renamed_from = None
+        for path, flag, event_id in events:
+            path = self._chosen(path)
+            if flag & (FS_MUST_SCAN | FS_USER_DROPPED | FS_KERNEL_DROPPED):
+                self.changes.overflow(self.root)   # FSEvents lost track below here: crawl again
+                continue
+            if flag & (FS_ROOT_CHANGED | FS_UNMOUNT) and not os.path.isdir(self.root):
+                self.changes.lose(self.root)       # the folder went away: deleted, moved, unplugged
+                self.stop()
+                return
+            if not self.recursive and os.path.dirname(path.rstrip("/")) != self.root.rstrip("/"):
+                continue                           # a folder of named files: not what's under it
+            if flag & FS_RENAMED:
+                if renamed_from and renamed_from[1] + 1 == event_id and not os.path.exists(renamed_from[0]):
+                    self.changes.rename(renamed_from[0], path)
+                    renamed_from = None
+                else:
+                    if renamed_from:
+                        self.changes.touch(renamed_from[0])
+                    renamed_from = (path, event_id)
+                continue
+            if renamed_from:
+                self.changes.touch(renamed_from[0])   # a rename with no partner: moved in from, or out to, elsewhere
+                renamed_from = None
+            if flag & FS_IS_DIR and not flag & (FS_CREATED | FS_REMOVED):
+                continue                           # a folder "changes" when something in it does, which reports itself
+            if flag & (FS_CREATED | FS_REMOVED | FS_MODIFIED | FS_INODE_META):
+                self.changes.touch(path)
+        if renamed_from:
+            self.changes.touch(renamed_from[0])
+
+    def stop(self) -> None:
+        self.stopping = True
+        if self._loop is not None:
+            _cf.CFRunLoopStop(self._loop)
+            _cf.CFRunLoopWakeUp(self._loop)
+
+
 class FolderWatcher:
     """Watches folder trees, and single folders (where files added by name live), and collects their changes in
-    `changes`. Folders inside another one watched are covered by it. Windows only."""
+    `changes`. Folders inside another one watched are covered by it. Windows and macOS."""
 
     MAX_SINGLES = 64   # folders of named files watched one by one at most; beyond, the regular full check finds changes
 
     def __init__(self, changes: Changes):
-        if sys.platform != "win32":
-            raise OSError("watching folders needs Windows")
+        if sys.platform not in ("win32", "darwin"):
+            raise OSError("watching folders needs Windows or macOS")
         self.changes = changes
         self._watches: dict[str, _Watch] = {}
 
@@ -274,7 +396,7 @@ class FolderWatcher:
                 self._watches.pop(root).stop()
         for root, recursive in wanted.items():
             if root not in self._watches:
-                thread = _Watch(root, self.changes, recursive)
+                thread = (_MacWatch if sys.platform == "darwin" else _Watch)(root, self.changes, recursive)
                 thread.start()
                 thread.started_ok.wait(5)
                 self._watches[root] = thread

@@ -46,8 +46,7 @@ jobs:
           uv run pytest -q -m "not server"
 
   # The vectors a Mac makes must be the reference's (tests/reference: cosine ≥ 0.999), or a Mac's index would
-  # disagree with everyone else's. The processor must pass; Metal is tried too (whether a hosted Mac exposes its GPU
-  # to the runner is what this tells).
+  # disagree with everyone else's: on the processor and on Metal (a hosted Mac's GPU is a paravirtual Metal device).
   reference:
     if: github.repository == 'WalidHadri-Iron/dowse'
     needs: test
@@ -78,7 +77,6 @@ jobs:
         run: DOWSE_BACKEND=cpu uv run pytest -q tests/test_reference.py
 
       - name: Reference vectors on Metal (the Apple GPU)
-        continue-on-error: true
         run: |
           uv run dowse setup --backend metal
           "$(uv run python -c 'from dowse import runtime; print(runtime.executable("metal"))')" --list-devices || true

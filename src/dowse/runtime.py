@@ -505,9 +505,16 @@ def environment_summary() -> str:
     for backend in BACKENDS:
         if installed(backend):
             found = devices(backend)
-            listed = ", ".join(f"{d.id} {d.name} ({d.dedicated_mb if d.dedicated_mb is not None else '?'} MB dedicated)"
-                               for d in found)
+            listed = ", ".join(f"{d.id} {d.name} ({_memory(d)})" for d in found)
             lines.append(f"  {backend}: installed" + (f" — {listed}" if listed else ""))
         else:
             lines.append(f"  {backend}: not installed")
-    return "\n".join(lines) + ("" if os.name == "nt" else "\n  (not on Windows: runtimes are Windows builds)")
+    return "\n".join(lines)
+
+
+def _memory(device: Device) -> str:
+    """A GPU's memory as the system tells it: dedicated (Windows), else what llama.cpp reports (a Mac's GPU shares
+    the computer's memory)."""
+    if device.dedicated_mb is not None:
+        return f"{device.dedicated_mb} MB dedicated"
+    return f"{device.memory_mb} MB"
