@@ -57,6 +57,14 @@ def open_file(path: str, kind: Kind, loc: float | None = None) -> None:
         os.startfile(path)  # noqa: S606 (the file's own app, as a double-click would)
 
 
+def open_folder(path: str) -> None:
+    """A folder of Dowse's own (the index, the logs), in Explorer or Finder."""
+    if MAC:
+        subprocess.Popen(["open", path])
+    else:
+        os.startfile(path)  # noqa: S606
+
+
 def reveal(path: str) -> None:
     """Explorer, with the file selected."""
     if MAC:

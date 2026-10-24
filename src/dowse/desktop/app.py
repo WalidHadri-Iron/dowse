@@ -775,7 +775,7 @@ class App:
         @route("POST", "/api/folder")
         def open_folder(request: Request):
             target = request.body.get("which")
-            os.startfile(str(default_file().parent if target == "index" else paths.logs()))  # noqa: S606
+            system.open_folder(str(default_file().parent if target == "index" else paths.logs()))
 
         @route("POST", "/api/warm")
         def warm(_: Request):

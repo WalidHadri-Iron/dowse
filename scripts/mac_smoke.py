@@ -79,6 +79,8 @@ def main() -> None:
     status = until(lambda: (lambda s: s if s["state"] == "idle" and s["done"] >= 3 else None)(
         api(state["port"], cookie, "GET", "/api/state")["status"]), 300, "reading the folder")
     print("read:", status)
+    api(state["port"], cookie, "POST", "/api/warm")                # the window opening wakes the query model
+    until(lambda: api(state["port"], cookie, "GET", "/api/state")["model"] == "ready", 120, "the query model")
     hits = api(state["port"], cookie, "POST", "/api/search", {"q": QUERY})["hits"]
     print(f"search {QUERY!r}:", [Path(h["path"]).name for h in hits[:3]])
     if not hits or not hits[0]["path"].endswith(EXPECTED):
