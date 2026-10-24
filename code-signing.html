@@ -1,0 +1,154 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Code signing policy · Dowse</title>
+<meta name="description" content="How Dowse's Windows installer is built and signed, who approves each signing, and what Dowse sends over the network.">
+<meta name="color-scheme" content="light dark">
+<meta name="theme-color" content="#e4e9e7" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0f1819" media="(prefers-color-scheme: dark)">
+<link rel="icon" type="image/svg+xml" href="brand/dowse-icon.svg">
+<link rel="icon" type="image/png" sizes="64x64" href="brand/favicon-64.png">
+<link rel="apple-touch-icon" href="brand/apple-touch-icon.png">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<header class="bar">
+  <div class="wrap">
+    <a class="brand" href="./" aria-label="Dowse, home">
+      <img class="mark-light" src="brand/dowse-wordmark.svg" alt="Dowse" width="110" height="30">
+      <img class="mark-dark" src="brand/dowse-wordmark-dark.svg" alt="Dowse" width="110" height="30">
+    </a>
+    <button class="menu-btn" type="button" aria-expanded="false" aria-controls="nav" aria-label="Menu">
+      <svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
+    </button>
+    <nav class="nav" id="nav" aria-label="Site">
+      <a href="./#features">Features</a>
+      <a href="./#privacy">Privacy</a>
+      <a href="./#how">How it works</a>
+      <a href="./#faq">FAQ</a>
+      <a href="https://github.com/WalidHadri-Iron/dowse">GitHub</a>
+    </nav>
+    <a class="btn btn-steel small bar-cta" href="./#get">Get Dowse</a>
+  </div>
+</header>
+
+<main class="band doc">
+  <div class="wrap">
+    <header class="sec-head">
+      <nav class="crumbs" aria-label="Breadcrumb"><a href="./">Dowse</a><span aria-hidden="true">›</span><span aria-current="page">Code signing policy</span></nav>
+      <h1>Code signing policy</h1>
+      <p class="lede">How Dowse's Windows installer is built and signed, who can approve a signature, and what Dowse sends over
+        the network.</p>
+    </header>
+
+    <div class="notice">
+      <span class="status"><i></i>Signing status</span>
+      <p>Dowse's Windows releases are to be signed through SignPath Foundation's free code signing
+      for open-source projects. A release is signed only when its release notes say so: <b>no release is signed yet</b> (the latest is 0.1.1).</p>
+    </div>
+
+    <section>
+      <h2>Who signs</h2>
+      <p>Free code signing provided by <a href="https://about.signpath.io/">SignPath.io</a>, certificate by
+        <a href="https://signpath.org/">SignPath Foundation</a>.</p>
+      <p>Because the certificate belongs to SignPath Foundation, Windows names <em>SignPath Foundation</em> as the
+        installer's publisher.</p>
+    </section>
+
+    <section>
+      <h2>What is signed, and how</h2>
+      <ul>
+        <li>Only the Windows installer, <span class="mono">Dowse-Setup-&lt;version&gt;.exe</span>, published on
+          <a href="https://github.com/WalidHadri-Iron/dowse/releases">GitHub releases</a>.</li>
+        <li>It is built by GitHub Actions (the <a href="https://github.com/WalidHadri-Iron/dowse/blob/main/.github/workflows/windows.yml">Windows workflow</a>)
+          from the source in <a href="https://github.com/WalidHadri-Iron/dowse">the public repository</a>, never on a
+          personal machine. The build scripts and the CI configuration are part of that source.</li>
+        <li>Every signing request is approved by hand by an approver (below), one release at a time.</li>
+        <li>The installer carries the product name <span class="mono">Dowse</span> and the release's version number.</li>
+        <li>Components inside it that come from other projects (Python and the open-source libraries Dowse uses) keep
+          their own maintainers' signatures, or none; this certificate doesn't sign them.</li>
+      </ul>
+    </section>
+
+    <section>
+      <h2>Team and roles</h2>
+      <table class="roles">
+        <thead><tr><th>Role</th><th>Who</th><th>Responsibility</th></tr></thead>
+        <tbody>
+          <tr><td>Committers and reviewers</td><td><a href="https://github.com/WalidHadri-Iron">WalidHadri-Iron</a></td>
+            <td>Change the source; review every contribution from anyone else before it's merged.</td></tr>
+          <tr><td>Approvers</td><td><a href="https://github.com/WalidHadri-Iron">WalidHadri-Iron</a></td>
+            <td>Approve each signing request.</td></tr>
+        </tbody>
+      </table>
+      <p>Every team member uses multi-factor authentication on GitHub and on SignPath.</p>
+    </section>
+
+    <section id="privacy">
+      <h2>Privacy policy</h2>
+      <p>This program will not transfer any information to other networked systems unless specifically requested by the
+        user or the person installing or operating it.</p>
+      <p>Dowse reads and searches your files on your PC. It has no account, no telemetry and no update check. It goes
+        online only for these downloads, which you start:</p>
+      <ul>
+        <li><strong>The model</strong>, from Hugging Face, when you choose one at setup or switch models.
+          <a href="https://huggingface.co/privacy">Hugging Face's privacy policy</a> applies to that download.</li>
+        <li><strong>The runtime</strong> (llama.cpp), from its releases on GitHub, at setup or when you switch device.
+          <a href="https://docs.github.com/en/site-policy/privacy-policies/github-general-privacy-statement">GitHub's privacy statement</a>
+          applies to that download.</li>
+        <li><strong>Microsoft Edge WebView2</strong>, which shows Dowse's window, is part of Windows. If it's missing, the
+          installer installs it from Microsoft. <a href="https://www.microsoft.com/privacy/privacystatement">Microsoft's privacy statement</a>
+          applies to WebView2.</li>
+      </ul>
+    </section>
+
+    <section>
+      <h2>Changes to your PC</h2>
+      <ul>
+        <li>Dowse installs for your Windows user only, without administrator rights, with a Start menu shortcut (and,
+          if you tick it, one on the desktop).</li>
+        <li>It adds <em>Dowse</em> to Explorer's right-click menu and to <em>Send to</em>, so you can add files to it
+          from Explorer. Settings › <em>Explorer's right-click menu</em> turns it off.</li>
+        <li>It starts with Windows unless you turn that off: the switch is on the first-run screen, and in Settings.</li>
+        <li>It adds new screenshots only if you turn that on in Settings.</li>
+        <li>Uninstalling (Windows Settings › Apps) removes all of these. It asks whether to also delete Dowse's index,
+          downloaded model and settings. Your own files are never changed, moved or deleted.</li>
+      </ul>
+    </section>
+  </div>
+</main>
+
+<footer>
+  <div class="wrap">
+    <div class="cols">
+      <div class="about">
+        <img src="brand/dowse-wordmark-dark.svg" alt="Dowse" width="110" height="30">
+        <p>Find anything on your PC by what's in it. Local, private semantic search for Windows.</p>
+      </div>
+      <div>
+        <h4>Product</h4>
+        <ul><li><a href="./#features">Features</a></li><li><a href="./#privacy">Privacy</a></li><li><a href="./#how">How it works</a></li><li><a href="./#get">Get it</a></li></ul>
+      </div>
+      <div>
+        <h4>Project</h4>
+        <ul><li><a href="https://github.com/WalidHadri-Iron/dowse">GitHub</a></li>
+          <li><a href="code-signing.html">Code signing policy</a></li>
+          <li><a href="https://github.com/WalidHadri-Iron/dowse/blob/main/LICENSE">MIT licence</a></li></ul>
+      </div>
+    </div>
+    <p class="legal">EmbeddingGemma 2 is Google DeepMind's model, used under the Gemma Terms of Use; llama.cpp is MIT
+      licensed. Fonts: Archivo and Martian Mono (SIL Open Font License).</p>
+  </div>
+</footer>
+
+<script>
+  (() => {
+    const btn = document.querySelector(".menu-btn"), nav = document.getElementById("nav");
+    btn.addEventListener("click", () => btn.setAttribute("aria-expanded", String(nav.classList.toggle("open"))));
+  })();
+</script>
+</body>
+</html>

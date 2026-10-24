@@ -1,0 +1,431 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Dowse · Find anything on your PC by what's in it</title>
+<meta name="description" content="Local, private semantic search for Windows. Describe a photo, a document, a recording or a video in your own words, and Dowse finds it, at the right page or moment. Nothing uploaded.">
+<meta name="color-scheme" content="light dark">
+<meta name="theme-color" content="#e4e9e7" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0f1819" media="(prefers-color-scheme: dark)">
+<meta property="og:type" content="website">
+<meta property="og:title" content="Dowse · Find anything on your PC by what's in it">
+<meta property="og:description" content="Local, private semantic search for Windows: photos, screenshots, PDFs, documents, recordings and videos, in 100+ languages. Nothing uploaded.">
+<meta property="og:image" content="https://walidhadri-iron.github.io/dowse/media/social.jpg">
+<meta property="og:url" content="https://walidhadri-iron.github.io/dowse/">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="icon" type="image/svg+xml" href="brand/dowse-icon.svg">
+<link rel="icon" type="image/png" sizes="64x64" href="brand/favicon-64.png">
+<link rel="apple-touch-icon" href="brand/apple-touch-icon.png">
+<link rel="preload" href="fonts/archivo.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<header class="bar">
+  <div class="wrap">
+    <a class="brand" href="#top" aria-label="Dowse, back to the top">
+      <img class="mark-light" src="brand/dowse-wordmark.svg" alt="Dowse" width="110" height="30">
+      <img class="mark-dark" src="brand/dowse-wordmark-dark.svg" alt="Dowse" width="110" height="30">
+    </a>
+    <button class="menu-btn" type="button" aria-expanded="false" aria-controls="nav" aria-label="Menu">
+      <svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
+    </button>
+    <nav class="nav" id="nav" aria-label="Sections">
+      <a href="#features">Features</a>
+      <a href="#privacy">Privacy</a>
+      <a href="#how">How it works</a>
+      <a href="#faq">FAQ</a>
+      <a href="https://github.com/WalidHadri-Iron/dowse">GitHub</a>
+    </nav>
+    <a class="btn btn-steel small bar-cta" href="#get">Get Dowse</a>
+  </div>
+</header>
+
+<main id="top">
+  <!-- Hero -->
+  <section class="hero">
+    <div class="wrap">
+      <div class="hero-text">
+        <h1>Find anything on your PC by what's in it.</h1>
+        <p class="lede">Describe a photo, a document, a recording or a video in your own words. Dowse finds it, at the right
+          page or moment, and runs entirely on your PC.</p>
+        <div class="actions">
+          <a class="btn btn-steel" href="https://github.com/WalidHadri-Iron/dowse/releases/download/v0.1.1/Dowse-Setup-0.1.1.exe" download>
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M3 5.5 10 4.5v7H3zm0 13 7 1v-7H3zm8-14.2L21 3v8.5H11zM11 20.7 21 21v-8.5H11z"/></svg>
+            Download for Windows <span class="soon">57 MB</span>
+          </a>
+          <a class="btn btn-floor" href="https://github.com/WalidHadri-Iron/dowse">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M12 2a10 10 0 0 0-3.16 19.49c.5.09.68-.22.68-.48v-1.7c-2.78.6-3.37-1.34-3.37-1.34-.45-1.16-1.11-1.47-1.11-1.47-.91-.62.07-.6.07-.6 1 .07 1.53 1.03 1.53 1.03.9 1.52 2.34 1.08 2.91.83.09-.65.35-1.08.63-1.33-2.22-.25-4.55-1.11-4.55-4.94 0-1.09.39-1.98 1.03-2.68-.1-.25-.45-1.27.1-2.64 0 0 .84-.27 2.75 1.02a9.6 9.6 0 0 1 5 0c1.91-1.29 2.75-1.02 2.75-1.02.55 1.37.2 2.39.1 2.64.64.7 1.03 1.59 1.03 2.68 0 3.84-2.34 4.68-4.57 4.93.36.31.68.92.68 1.85v2.74c0 .27.18.58.69.48A10 10 0 0 0 12 2Z"/></svg>
+            Source on GitHub
+          </a>
+        </div>
+        <div class="facts" aria-label="At a glance">
+          <span class="tag">Windows 10 &amp; 11</span>
+          <span class="tag">nothing uploaded</span>
+          <span class="tag">100+ languages</span>
+          <span class="tag">free · MIT</span>
+        </div>
+      </div>
+      <div class="film">
+        <div class="film-frame">
+          <video controls preload="metadata" playsinline poster="media/dowse-launch-poster.jpg" aria-label="Dowse, the two-minute tour, narrated">
+            <source src="media/dowse-launch.mp4" type="video/mp4">
+          </video>
+        </div>
+        <p class="film-note"><span class="dot"></span>The two-minute tour, with sound: the real app on a demo library.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- 01 · The idea -->
+  <section class="band raised" id="idea">
+    <div class="wrap">
+      <header class="sec-head">
+        <span class="aisle"><b>01</b>The idea</span>
+        <h2>Windows search reads names. Dowse reads what's inside.</h2>
+      </header>
+      <div class="versus">
+        <div class="card">
+          <span class="who">Windows search</span>
+          <div class="names" aria-label="What Windows sees: file names">
+            <span class="tag">IMG_0011.jpg</span><span class="tag">PXL_20260914_083500002.jpg</span>
+            <span class="tag">Recording 3.m4a</span><span class="tag">Tenancy agreement Linden Street.pdf</span>
+          </div>
+          <div class="field"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="m21 21-4.3-4.3M10.5 18a7.5 7.5 0 1 1 0-15 7.5 7.5 0 0 1 0 15Z"/></svg><span>yellow tram</span></div>
+          <p class="verdict miss"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 8v5M12 16.5v.01M10.3 3.9 2.6 17.2A2 2 0 0 0 4.3 20h15.4a2 2 0 0 0 1.7-2.8L13.7 3.9a2 2 0 0 0-3.4 0Z"/></svg>No items match your search.</p>
+        </div>
+        <div class="card">
+          <span class="who found">Dowse</span>
+          <p class="verdict">Looks at what each file shows, says or sounds like, and matches it to your words.</p>
+          <div class="field on"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="m21 21-4.3-4.3M10.5 18a7.5 7.5 0 1 1 0-15 7.5 7.5 0 0 1 0 15Z"/></svg><span>photos of a yellow tram in Lisbon</span></div>
+          <div class="hit"><img src="media/describe.jpg" alt="" loading="lazy"><div><b>IMG_0011.jpg</b><small>2025 › 06 Lisbon · the first result</small></div></div>
+        </div>
+      </div>
+      <p class="explain">It reads each file with <a href="https://huggingface.co/google/embeddinggemma-2">EmbeddingGemma 2</a>,
+        Google DeepMind's open multimodal embedding model. It places a photo, a page, a stretch of sound or a video shot
+        near the words that describe it, so what you type is matched to what's inside.</p>
+    </div>
+  </section>
+
+  <!-- 02 · Search -->
+  <section class="band" id="features">
+    <div class="wrap">
+      <header class="sec-head">
+        <span class="aisle"><b>02</b>Search</span>
+        <h2>Press Alt + Shift + Space, and describe it.</h2>
+        <p class="lede">From any app. Results come as you type, and Enter opens the file at the page or moment.</p>
+      </header>
+      <div class="tabs" role="tablist" aria-label="What it finds">
+        <button role="tab" id="t-photo" aria-controls="p-photo" aria-selected="true"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="m3 16 5-5 5 5 3-3 5 5"/><circle cx="16" cy="8.5" r="1.5"/></svg>Photos</button>
+        <button role="tab" id="t-doc" aria-controls="p-doc" aria-selected="false" tabindex="-1"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 3h7l5 5v13H7z"/><path d="M14 3v5h5M10 13h6M10 17h6"/></svg>Documents</button>
+        <button role="tab" id="t-moment" aria-controls="p-moment" aria-selected="false" tabindex="-1"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 10v4M8 7v10M12 4v16M16 8v8M20 11v2"/></svg>Sound &amp; video</button>
+        <button role="tab" id="t-lang" aria-controls="p-lang" aria-selected="false" tabindex="-1"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.5 2.7 3.8 5.7 3.8 9s-1.3 6.3-3.8 9c-2.5-2.7-3.8-5.7-3.8-9S9.5 5.7 12 3Z"/></svg>Any language</button>
+      </div>
+
+      <div class="panel" role="tabpanel" id="p-photo" aria-labelledby="t-photo">
+        <div class="panel-text">
+          <h3>A photo, by what it shows</h3>
+          <div class="field on"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="m21 21-4.3-4.3M10.5 18a7.5 7.5 0 1 1 0-15 7.5 7.5 0 0 1 0 15Z"/></svg><span>photos of a yellow tram in Lisbon</span></div>
+          <p class="lands">finds <b>IMG_0011.jpg</b> · 2025 › 06 Lisbon</p>
+          <p>Phone photos (HEIC too) and screenshots, whose words are read by Windows' own OCR.</p>
+        </div>
+        <div class="shot"><video muted loop playsinline preload="none" poster="media/describe.jpg" data-loop aria-label="Typing 'photos of a yellow tram in Lisbon' finds IMG_0011.jpg"><source src="media/describe.mp4" type="video/mp4"></video></div>
+      </div>
+      <div class="panel" role="tabpanel" id="p-doc" aria-labelledby="t-doc">
+        <div class="panel-text">
+          <h3>A document, open at the page</h3>
+          <div class="field on"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="m21 21-4.3-4.3M10.5 18a7.5 7.5 0 1 1 0-15 7.5 7.5 0 0 1 0 15Z"/></svg><span>can I keep a dog in the flat</span></div>
+          <p class="lands">finds <b>Tenancy agreement Linden Street.pdf</b> · the Pets clause</p>
+          <p>Ask it as you'd ask a person. PDFs open at the page with your words marked. Word, PowerPoint, notes, e-mails
+            and e-books too.</p>
+        </div>
+        <div class="shot"><video muted loop playsinline preload="none" poster="media/documents.jpg" data-loop aria-label="Searching 'can I keep a dog in the flat' finds the lease, then its Pets clause up close"><source src="media/documents.mp4" type="video/mp4"></video></div>
+      </div>
+      <div class="panel" role="tabpanel" id="p-moment" aria-labelledby="t-moment">
+        <div class="panel-text">
+          <h3>Sound and video, at the moment</h3>
+          <div class="field on"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="m21 21-4.3-4.3M10.5 18a7.5 7.5 0 1 1 0-15 7.5 7.5 0 0 1 0 15Z"/></svg><span>how many months for an emergency fund</span></div>
+          <p class="lands">finds <b>Money Matters 04 · budgeting basics.mp3</b> · at 0:25</p>
+          <p>Recordings and videos are found by what's said and seen, and play from where it happens.</p>
+        </div>
+        <div class="shot"><video muted loop playsinline preload="none" poster="media/moment.jpg" data-loop aria-label="Searching 'how many months for an emergency fund' finds the podcast at 0:25"><source src="media/moment.mp4" type="video/mp4"></video></div>
+      </div>
+      <div class="panel" role="tabpanel" id="p-lang" aria-labelledby="t-lang">
+        <div class="panel-text">
+          <h3>In any language</h3>
+          <div class="field on" lang="ar" dir="rtl"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="m21 21-4.3-4.3M10.5 18a7.5 7.5 0 1 1 0-15 7.5 7.5 0 0 1 0 15Z"/></svg><span>إيصال المخبز في باريس</span></div>
+          <p class="lands">"the bakery receipt in Paris" · the <b>same receipt</b> from 13 languages</p>
+          <p>Search in one language, find files written in another.</p>
+        </div>
+        <div class="shot"><video muted loop playsinline preload="none" poster="media/languages.jpg" data-loop aria-label="The same receipt found from 13 languages, from English to Arabic"><source src="media/languages.mp4" type="video/mp4"></video></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 03 · Beyond the search box -->
+  <section class="band raised" id="more">
+    <div class="wrap">
+      <header class="sec-head">
+        <span class="aisle"><b>03</b>Beyond the search box</span>
+        <h2>Start from a file, or just look around.</h2>
+      </header>
+      <div class="ways">
+        <figure class="way">
+          <video muted loop playsinline preload="none" poster="media/similar.jpg" data-loop aria-label="Similar on a receipt finds the other receipts"><source src="media/similar.mp4" type="video/mp4"></video>
+          <figcaption><h3>More like this</h3><p>From any result, its look-alikes: from one receipt, the others.</p></figcaption>
+        </figure>
+        <figure class="way">
+          <video muted loop playsinline preload="none" poster="media/drop.jpg" data-loop aria-label="Dropping a cat photo on the window finds the cat's photos"><source src="media/drop.mp4" type="video/mp4"></video>
+          <figcaption><h3>Drop in any file</h3><p>A photo Dowse has never seen finds the ones like it. It's read to compare, never added.</p></figcaption>
+        </figure>
+        <figure class="way">
+          <video muted loop playsinline preload="none" poster="media/gallery.jpg" data-loop aria-label="The Workspace's search gallery for 'Lisbon'"><source src="media/gallery.mp4" type="video/mp4"></video>
+          <figcaption><h3>The Workspace</h3><p>The same search as a gallery: the closest files come forward.</p></figcaption>
+        </figure>
+        <figure class="way">
+          <video muted loop playsinline preload="none" poster="media/explore.jpg" data-loop aria-label="Explore: every topic, then into the Lisbon trip"><source src="media/explore.mp4" type="video/mp4"></video>
+          <figcaption><h3>Explore</h3><p>Your files laid out by what they're about, in aisles you can name.</p></figcaption>
+        </figure>
+      </div>
+      <dl class="kinds">
+        <div><dt>Every kind of file</dt><dd>Photos, screenshots, PDFs, Word, PowerPoint, OpenDocument, notes, e-mails, e-books, code, recordings, videos.</dd></div>
+        <div><dt>Plain dates and kinds</dt><dd><span class="mono">"electricity bill from March"</span> just works. When nothing matches, it says so.</dd></div>
+        <div><dt>Always up to date</dt><dd>New, changed, moved and deleted files are followed live, seconds after they appear.</dd></div>
+      </dl>
+    </div>
+  </section>
+
+  <!-- 04 · Privacy -->
+  <section class="band steel" id="privacy">
+    <div class="wrap">
+      <header class="sec-head">
+        <span class="aisle"><b>04</b>Privacy</span>
+        <h2>Read and searched on your PC. Never uploaded.</h2>
+        <p class="lede">The model runs locally through llama.cpp: on your graphics card when you have one worth using, on the
+          processor otherwise. No account, no cloud.</p>
+      </header>
+      <ul class="promises">
+        <li><span class="ic"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 7h6l2 2h10v10H3z"/></svg></span>
+          <div><strong>Your files stay where they are</strong>Dowse never changes, moves, uploads or copies them.</div></li>
+        <li><span class="ic"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg></span>
+          <div><strong>The index stays on your PC</strong>And Settings can encrypt it with your Windows sign-in.</div></li>
+        <li><span class="ic"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v11M7 10l5 5 5-5M5 20h14"/></svg></span>
+          <div><strong>Online once</strong>To download the model (from Hugging Face) and the runtime (from llama.cpp's releases), at setup or when you switch. Nothing else.</div></li>
+        <li><span class="ic"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="m6 6 12 12"/></svg></span>
+          <div><strong>Some things are never read</strong>Keys and password files, OneDrive files that are only online, and code projects' internals.</div></li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- 05 · How it works -->
+  <section class="band raised" id="how">
+    <div class="wrap">
+      <header class="sec-head">
+        <span class="aisle"><b>05</b>How it works</span>
+        <h2>One model for every kind of file.</h2>
+      </header>
+      <ol class="flow">
+        <li><h3>Read</h3><span>Pictures, PDF pages, document passages, screenshot text, 30-second windows of sound, video shots.</span></li>
+        <li><h3>Embed</h3><span>EmbeddingGemma 2 turns each into 768 numbers, in one space for every kind.</span></li>
+        <li><h3>Keep</h3><span>One SQLite file on your PC: those vectors, plus a keyword index of names and text.</span></li>
+        <li><h3>Find</h3><span>Your words go through the same model; meaning and keywords are ranked together.</span></li>
+      </ol>
+      <div class="stats">
+        <div class="stat"><span class="n">56<small>ms</small></span><span class="l">from typed words to ranked results (median)</span></div>
+        <div class="stat"><span class="n">147<small>ms</small></span><span class="l">to read a file, on a graphics card</span></div>
+        <div class="stat"><span class="n">2.7<small>s</small></span><span class="l">to read a file, on the processor alone</span></div>
+      </div>
+      <p class="fine">Measured on a demo library of 974 files (548 MB) with an RTX 4070 Ti and a Ryzen 9 7900X. Yours will
+        differ, and <a href="https://github.com/WalidHadri-Iron/dowse/blob/main/scripts/benchmark.py">the benchmark</a>
+        measures your own. Files are read once; after that, only new or changed ones. More:
+        <a href="https://github.com/WalidHadri-Iron/dowse#performance">per kind of file</a> ·
+        <a href="https://github.com/WalidHadri-Iron/dowse/blob/main/docs/how-it-works.md">ranking and readers</a>.</p>
+    </div>
+  </section>
+
+  <!-- 06 · Get it -->
+  <section class="band" id="get">
+    <div class="wrap">
+      <header class="sec-head">
+        <span class="aisle"><b>06</b>Get it</span>
+        <h2>Free and open source.</h2>
+      </header>
+      <div class="get">
+        <div class="card">
+          <span class="status"><i></i>Available now · v0.1.1</span>
+          <h3>Windows installer</h3>
+          <p>Per user, no admin rights, with everything it needs inside: no Python or Node to install. On first run, Dowse
+            downloads its model (about 865 MB) and runtime, then works offline.</p>
+          <a class="btn btn-steel" href="https://github.com/WalidHadri-Iron/dowse/releases/download/v0.1.1/Dowse-Setup-0.1.1.exe" download><svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M3 5.5 10 4.5v7H3zm0 13 7 1v-7H3zm8-14.2L21 3v8.5H11zM11 20.7 21 21v-8.5H11z"/></svg>Download Dowse-Setup-0.1.1.exe <span class="soon">57 MB</span></a>
+          <p class="note">This first release isn't code-signed yet, so Windows may warn about an unknown publisher. Download it
+            only from here or <a href="https://github.com/WalidHadri-Iron/dowse/releases/tag/v0.1.1">the GitHub release</a>, and you can check it against its
+            <a href="https://github.com/WalidHadri-Iron/dowse/releases/download/v0.1.1/SHA256SUMS.txt">SHA-256 checksum</a>.
+            <a href="code-signing.html">Code signing policy</a>.</p>
+          <ul class="reqs">
+            <li><span>System</span><span>Windows 10 or 11, 64-bit</span></li>
+            <li><span>Disk</span><span>About 1 GB for the model and runtime</span></li>
+            <li><span>Graphics</span><span>Optional: a card with 2 GB or more (NVIDIA, AMD or Intel) speeds up reading</span></li>
+          </ul>
+        </div>
+        <div class="card">
+          <span class="status"><i></i>For developers</span>
+          <h3>Run it from source</h3>
+          <div class="code">
+            <button type="button" data-copy="code-src">Copy</button>
+<pre id="code-src"><span class="c"># Python 3.12 or 3.13, uv, and Node 22+</span>
+git clone https://github.com/WalidHadri-Iron/dowse.git
+cd dowse
+cd web; npm install; npm run build; cd ..
+uv sync
+uv run dowse-app</pre>
+          </div>
+          <p>The first run lets you pick a model and folders, says how long reading them will take, and sets the shortcut.
+            Full guide: <a href="https://github.com/WalidHadri-Iron/dowse/blob/main/docs/using-dowse.md">using Dowse</a>.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 07 · FAQ -->
+  <section class="band raised" id="faq">
+    <div class="wrap faq">
+      <header class="sec-head">
+        <span class="aisle"><b>07</b>FAQ</span>
+        <h2>Good to know</h2>
+      </header>
+      <div>
+        <details>
+          <summary>Does it need the internet?</summary>
+          <p>Only once, to download its model and runtime (about 1 GB). After that it works offline, and your files and
+            searches never leave your PC.</p>
+        </details>
+        <details>
+          <summary>Do I need a graphics card?</summary>
+          <p>No. Searching is just as quick on the processor. A graphics card makes the first reading of your files much
+            faster, PDFs and documents most of all.</p>
+        </details>
+        <details>
+          <summary>What does it cost?</summary>
+          <p>Nothing. Dowse is open source under the MIT licence. The EmbeddingGemma 2 model is downloaded at setup and used
+            under the <a href="https://ai.google.dev/gemma/terms">Gemma Terms of Use</a>.</p>
+        </details>
+        <details>
+          <summary>Which files does it read?</summary>
+          <p>The folders you choose, single files you add from Explorer's right-click menu, and, if you turn it on, new
+            screenshots as you take them. Anything can be switched off from the Library.</p>
+        </details>
+        <details>
+          <summary>Why does Windows warn me about the installer?</summary>
+          <p>Windows shows a SmartScreen or unknown-publisher warning for programs that aren't code-signed, and this first
+            release isn't yet. Signing is on the roadmap. Until then, download only from this page or
+            <a href="https://github.com/WalidHadri-Iron/dowse/releases/tag/v0.1.1">the GitHub release</a>, and compare the file with its
+            <a href="https://github.com/WalidHadri-Iron/dowse/releases/download/v0.1.1/SHA256SUMS.txt">SHA-256 checksum</a> (in PowerShell: <span class="mono">Get-FileHash Dowse-Setup-0.1.1.exe</span>).</p>
+        </details>
+        <details>
+          <summary>Mac or Linux?</summary>
+          <p>Not yet. They're on the roadmap, along with a signed installer and a way for AI agents to search your files.</p>
+        </details>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <div class="wrap">
+    <div class="cols">
+      <div class="about">
+        <img src="brand/dowse-wordmark-dark.svg" alt="Dowse" width="110" height="30">
+        <p>Find anything on your PC by what's in it. Local, private semantic search for Windows.</p>
+      </div>
+      <div>
+        <h4>Product</h4>
+        <ul><li><a href="#features">Features</a></li><li><a href="#privacy">Privacy</a></li><li><a href="#how">How it works</a></li><li><a href="#get">Get it</a></li></ul>
+      </div>
+      <div>
+        <h4>Project</h4>
+        <ul><li><a href="https://github.com/WalidHadri-Iron/dowse">GitHub</a></li>
+          <li><a href="https://github.com/WalidHadri-Iron/dowse/blob/main/docs/using-dowse.md">Guide</a></li>
+          <li><a href="code-signing.html">Code signing policy</a></li>
+          <li><a href="https://github.com/WalidHadri-Iron/dowse/blob/main/LICENSE">MIT licence</a></li></ul>
+      </div>
+    </div>
+    <p class="legal">EmbeddingGemma 2 is Google DeepMind's model, used under the Gemma Terms of Use; llama.cpp is MIT
+      licensed. Fonts: Archivo and Martian Mono (SIL Open Font License).</p>
+  </div>
+</footer>
+
+<script>
+  (() => {
+    // The menu, on narrow screens
+    const btn = document.querySelector(".menu-btn"), nav = document.getElementById("nav");
+    btn.addEventListener("click", () => {
+      const open = nav.classList.toggle("open");
+      btn.setAttribute("aria-expanded", String(open));
+    });
+    nav.addEventListener("click", (e) => { if (e.target.closest("a")) { nav.classList.remove("open"); btn.setAttribute("aria-expanded", "false"); } });
+
+    // The section you're in, marked in the header
+    const links = [...nav.querySelectorAll('a[href^="#"]')];
+    const sections = links.map((a) => document.querySelector(a.getAttribute("href"))).filter(Boolean);
+    if ("IntersectionObserver" in window) {
+      const mark = new IntersectionObserver((entries) => {
+        for (const e of entries) if (e.isIntersecting) {
+          links.forEach((a) => a.toggleAttribute("aria-current", a.getAttribute("href") === "#" + e.target.id));
+          links.forEach((a) => a.hasAttribute("aria-current") && a.setAttribute("aria-current", "true"));
+        }
+      }, { rootMargin: "-45% 0px -50% 0px" });
+      sections.forEach((s) => mark.observe(s));
+    }
+
+    // Tabs (arrow keys move between them)
+    const tabs = [...document.querySelectorAll('[role="tab"]')];
+    const select = (tab, focus) => {
+      tabs.forEach((t) => {
+        const on = t === tab;
+        t.setAttribute("aria-selected", String(on));
+        t.tabIndex = on ? 0 : -1;
+        const panel = document.getElementById(t.getAttribute("aria-controls"));
+        panel.hidden = !on;
+        const v = panel.querySelector("video");
+        if (v && !on) v.pause();
+        if (v && on && looping) play(v);
+      });
+      if (focus) tab.focus();
+    };
+    tabs.forEach((t, i) => {
+      t.addEventListener("click", () => select(t));
+      t.addEventListener("keydown", (e) => {
+        const d = e.key === "ArrowRight" ? 1 : e.key === "ArrowLeft" ? -1 : 0;
+        if (d) { e.preventDefault(); select(tabs[(i + d + tabs.length) % tabs.length], true); }
+      });
+    });
+
+    // The demo loops play only while on screen, and not with reduced motion (their poster stays, with controls)
+    const still = matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const looping = !still && "IntersectionObserver" in window;
+    const play = (v) => { if (v.preload !== "auto") { v.preload = "auto"; v.load(); } v.play().catch(() => {}); };
+    const loops = document.querySelectorAll("video[data-loop]");
+    if (still) loops.forEach((v) => v.setAttribute("controls", ""));
+    if (looping) {
+      const seen = new IntersectionObserver((entries) => {
+        for (const e of entries) {
+          const v = e.target;
+          if (e.isIntersecting && !v.closest("[hidden]")) play(v); else v.pause();
+        }
+      }, { rootMargin: "120px 0px" });
+      loops.forEach((v) => seen.observe(v));
+    }
+    select(tabs[0]);
+
+    // Copy, falling back to selecting the text
+    document.querySelectorAll("[data-copy]").forEach((b) => b.addEventListener("click", async () => {
+      const el = document.getElementById(b.dataset.copy);
+      try { await navigator.clipboard.writeText(el.innerText); b.textContent = "Copied"; }
+      catch { const r = document.createRange(); r.selectNodeContents(el); const s = getSelection(); s.removeAllRanges(); s.addRange(r); b.textContent = "Selected"; }
+      setTimeout(() => (b.textContent = "Copy"), 1600);
+    }));
+  })();
+</script>
+</body>
+</html>
