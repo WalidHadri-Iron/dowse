@@ -26,6 +26,7 @@
 
   import { onMount } from "svelte";
   import { api, mediaUrl, pictureUrl } from "../lib/api";
+  import { primary, shortcut } from "../lib/keys";
   import { KIND_NAME, runs, size, when } from "../lib/app.svelte";
   import Icon from "./Icon.svelte";
   import Inspector from "./Inspector.svelte";
@@ -58,10 +59,10 @@
     .sort((a, b) => a.loc - b.loc) : []);
   const matchedPages = $derived(item?.kind === "pdf" ? [...new Set(moments.map((m) => Math.round(m.loc)))].sort((a, b) => a - b) : []);
 
-  // Shift+Enter: up close (Enter opens it, Ctrl+Enter shows it in its folder)
+  // Shift+Enter: up close (Enter opens it, Ctrl+Enter / ⌘↩ shows it in its folder)
   onMount(() => {
     const keys = (event: KeyboardEvent) => {
-      if (event.key === "Enter" && event.shiftKey && !event.ctrlKey && item && !inspecting) {
+      if (event.key === "Enter" && event.shiftKey && !primary(event) && item && !inspecting) {
         event.preventDefault();
         event.stopPropagation();
         inspecting = true;
@@ -186,8 +187,8 @@
       <button class="primary" onclick={() => onopen ? onopen() : api.open(item.path, item.loc, query)}>
         <Icon name="open" size={18} />Open{#if item.place && item.kind !== "doc"}&nbsp;at {item.place}{/if}
       </button>
-      <button onclick={() => api.reveal(item.path, query)} title="Show in folder (Ctrl+Enter)"><Icon name="folderOpen" size={18} />Show</button>
-      <button onclick={() => copy("file")} title="Copy the file (Ctrl+C)"><Icon name={copied === "file" ? "check" : "copy"} size={18} />{copied === "file" ? "Copied" : "Copy"}</button>
+      <button onclick={() => api.reveal(item.path, query)} title="Show in folder ({shortcut('Enter')})"><Icon name="folderOpen" size={18} />Show</button>
+      <button onclick={() => copy("file")} title="Copy the file ({shortcut('C')})"><Icon name={copied === "file" ? "check" : "copy"} size={18} />{copied === "file" ? "Copied" : "Copy"}</button>
       {#if item.kind === "pdf"}
         <button onclick={() => (reading = !reading)} aria-pressed={reading}><Icon name="pdf" size={18} />{reading ? "Marked" : "Read here"}</button>
       {/if}

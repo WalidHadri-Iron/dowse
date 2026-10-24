@@ -6,6 +6,7 @@
 
   import { onMount, onDestroy } from "svelte";
   import { api, mediaUrl, pictureUrl } from "../lib/api";
+  import { primary, shortcut } from "../lib/keys";
   import { KIND_NAME, clock, runs, size } from "../lib/app.svelte";
   import Icon from "./Icon.svelte";
   import Zoomable from "./Zoomable.svelte";
@@ -100,9 +101,9 @@
       else if (event.key === "ArrowRight" || event.key === "PageDown") turn(1);
       else if (event.key === "ArrowLeft" || event.key === "PageUp") turn(-1);
       else if ((event.key === "]" || event.key === "[") && player) timeline?.step(event.key === "]" ? 1 : -1);
-      else if (event.ctrlKey && (event.key === "=" || event.key === "+") && zoomable) zoomer?.zoomBy(1.4);
-      else if (event.ctrlKey && event.key === "-" && zoomable) zoomer?.zoomBy(1 / 1.4);
-      else if (event.ctrlKey && event.key === "0" && zoomable) zoomer?.reset();
+      else if (primary(event) && (event.key === "=" || event.key === "+") && zoomable) zoomer?.zoomBy(1.4);
+      else if (primary(event) && event.key === "-" && zoomable) zoomer?.zoomBy(1 / 1.4);
+      else if (primary(event) && event.key === "0" && zoomable) zoomer?.reset();
       else return;
       event.preventDefault();
       event.stopPropagation();
@@ -131,9 +132,9 @@
     </div>
     {#if picture || (item.kind === "pdf" && !reading)}
       <div class="zoom" role="group" aria-label="Zoom">
-        <button onclick={() => zoomer?.zoomBy(1 / 1.4)} title="Zoom out (Ctrl+-)" aria-label="Zoom out">−</button>
-        <button class="data" onclick={() => zoomer?.reset()} title="The whole picture (Ctrl+0)">{Math.round(zoom * 100)}%</button>
-        <button onclick={() => zoomer?.zoomBy(1.4)} title="Zoom in (Ctrl+=)" aria-label="Zoom in">+</button>
+        <button onclick={() => zoomer?.zoomBy(1 / 1.4)} title="Zoom out ({shortcut('-')})" aria-label="Zoom out">−</button>
+        <button class="data" onclick={() => zoomer?.reset()} title="The whole picture ({shortcut('0')})">{Math.round(zoom * 100)}%</button>
+        <button onclick={() => zoomer?.zoomBy(1.4)} title="Zoom in ({shortcut('=')})" aria-label="Zoom in">+</button>
       </div>
     {/if}
     <div class="actions">
@@ -211,7 +212,7 @@
       <Timeline bind:this={timeline} {duration} moments={moments} {now} onseek={seek} />
     {/if}
     <p class="keys">
-      {#if item.kind === "pdf"}← → pages{:else if item.kind === "doc"}← → passages{:else if item.kind === "audio" || item.kind === "video"}[ ] moments · ← → 5 seconds{:else}wheel or Ctrl+= zoom · drag to look around · double-click{/if}
+      {#if item.kind === "pdf"}← → pages{:else if item.kind === "doc"}← → passages{:else if item.kind === "audio" || item.kind === "video"}[ ] moments · ← → 5 seconds{:else}wheel or {shortcut("=")} zoom · drag to look around · double-click{/if}
       · ↑ ↓ other results · Esc close
     </p>
   </footer>

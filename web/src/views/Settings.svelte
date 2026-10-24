@@ -5,6 +5,7 @@
 
   import { onMount, untrack } from "svelte";
   import { api, listen, type Kind, type ModelJob, type SearchModel } from "../lib/api";
+  import { MAC, keyName, keyOf, modifiers } from "../lib/keys";
   import { KIND_PLURAL, dowse, size } from "../lib/app.svelte";
   import type { IconName } from "../lib/icons";
   import Icon from "../components/Icon.svelte";
@@ -163,9 +164,11 @@
     event.preventDefault();
     if (event.key === "Escape") { recording = false; hotkeyProblem = ""; return; }
     if (["Control", "Alt", "Shift", "Meta"].includes(event.key)) return;
-    const mods = [event.ctrlKey && "Ctrl", event.altKey && "Alt", event.shiftKey && "Shift", event.metaKey && "Win"].filter(Boolean);
-    if (!mods.length || (mods.length === 1 && mods[0] === "Shift")) { hotkeyProblem = "Add Ctrl, Alt or Win"; return; }
-    const key = event.key === " " ? "Space" : event.key.length === 1 ? event.key.toUpperCase() : event.key;
+    const mods = modifiers(event);
+    if (!mods.length || (mods.length === 1 && mods[0] === "Shift")) {
+      hotkeyProblem = MAC ? "Add Command, Option or Control" : "Add Ctrl, Alt or Win"; return;
+    }
+    const key = keyOf(event);
     const combination = [...mods, key].join("+");
     api.settings({ hotkey: combination }).then((answer) => {
       if (answer.ok) { recording = false; hotkeyProblem = ""; if (answer.state) dowse.state = answer.state; }
@@ -225,7 +228,7 @@
           <span class="what"><b>Shortcut</b><span>Opens Quick search from any app.{#if hotkeyProblem} <em>{hotkeyProblem}.</em>{/if}</span></span>
           <button class="keys" class:recording onclick={() => { recording = true; hotkeyProblem = ""; }} onkeydown={(e) => recording && record(e)}
                   onblur={() => (recording = false)} title="Click, then press the new shortcut">
-            {#if recording}Press the new shortcut…{:else}{#each settings.hotkey.split("+") as key}<kbd>{key}</kbd>{/each}{/if}
+            {#if recording}Press the new shortcut…{:else}{#each settings.hotkey.split("+") as key}<kbd>{keyName(key)}</kbd>{/each}{/if}
           </button>
         </div>
         <div class="row">

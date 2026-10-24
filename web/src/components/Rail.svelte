@@ -1,5 +1,6 @@
 <script lang="ts">
   import { api } from "../lib/api";
+  import { shortcut } from "../lib/keys";
   import { dowse, size } from "../lib/app.svelte";
   import { windowMode } from "../lib/window.svelte";
   import type { IconName } from "../lib/icons";
@@ -68,8 +69,8 @@
   </ul>
 
   <button class="quick" onclick={() => windowMode.change(true)} disabled={windowMode.switching}
-          title="Switch this window to quick search (Ctrl+O)">
-    <Icon name="search" size={18} /><span>Quick search</span><kbd>Ctrl+O</kbd>
+          title="Switch this window to quick search ({shortcut('O')})">
+    <Icon name="search" size={18} /><span>Quick search</span><kbd>{shortcut("O")}</kbd>
   </button>
 
   <dl class="instruments" aria-label="How Dowse is doing">

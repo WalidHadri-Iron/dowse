@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount, untrack } from "svelte";
   import { api } from "./lib/api";
+  import { primary } from "./lib/keys";
   import { dowse } from "./lib/app.svelte";
   import { search } from "./lib/search.svelte";
   import { windowMode } from "./lib/window.svelte";
@@ -21,7 +22,7 @@
   onMount(() => {
     dowse.start().catch((error) => { failed = String(error.message ?? error); });
     const keys = (event: KeyboardEvent) => {
-      if (event.ctrlKey && !event.altKey && !event.shiftKey && event.key.toLowerCase() === "o"
+      if (primary(event) && !event.altKey && !event.shiftKey && event.key.toLowerCase() === "o"
           && dowse.state && !dowse.state.setupNeeded && dowse.path !== "/welcome") {
         event.preventDefault();
         windowMode.change(dowse.path !== "/popup");
@@ -61,7 +62,7 @@
 
   const view = $derived(dowse.path.split("/")[1] || "search");
   // Keep an already-open gallery across Quick search, with its render loop paused. Rebuilding its
-  // WebGL context/shaders on each Ctrl+O made every round trip visibly stall.
+  // WebGL context/shaders on each Ctrl+O (⌘O) made every round trip visibly stall.
   let keepSearch = $state(false);
   $effect(() => {
     if (view !== "popup") keepSearch = view === "search";

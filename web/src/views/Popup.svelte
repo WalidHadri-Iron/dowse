@@ -2,6 +2,7 @@
   // Quick search is the compact mode of the same window and the same live search as the workspace.
   import { onMount } from "svelte";
   import { api } from "../lib/api";
+  import { primary, shortcut } from "../lib/keys";
   import { dowse } from "../lib/app.svelte";
   import { search } from "../lib/search.svelte";
   import { resultSummary } from "../lib/search-confidence";
@@ -52,8 +53,8 @@
     else if (event.key === "PageDown") { search.move(6); event.preventDefault(); }
     else if (event.key === "PageUp") { search.move(-6); event.preventDefault(); }
     else if (event.key === "Enter" && search.current) {
-      event.preventDefault(); open(search.selected, event.ctrlKey);
-    } else if (event.key.toLowerCase() === "c" && event.ctrlKey && search.current
+      event.preventDefault(); open(search.selected, primary(event));
+    } else if (event.key.toLowerCase() === "c" && primary(event) && search.current
                && !window.getSelection()?.toString() && input?.selectionStart === input?.selectionEnd) {
       api.copy(search.current.path, event.shiftKey ? "path" : "file", search.query); event.preventDefault();
     }
@@ -73,8 +74,8 @@
     <div class="identity"><Brand height={26} /><span class="mode-label">Quick search</span></div>
     <div class="controls">
       <button class="expand" onclick={() => windowMode.change(false)} disabled={windowMode.switching}
-              title="Expand this window to the workspace (Ctrl+O)">
-        <Icon name="expand" size={16} />Workspace <kbd>Ctrl+O</kbd>
+              title="Expand this window to the workspace ({shortcut('O')})">
+        <Icon name="expand" size={16} />Workspace <kbd>{shortcut("O")}</kbd>
       </button>
     </div>
   </header>

@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount, untrack } from "svelte";
   import { api } from "../lib/api";
+  import { primary } from "../lib/keys";
   import { dowse } from "../lib/app.svelte";
   import { search, machineLine } from "../lib/search.svelte";
   import Counter from "../components/Counter.svelte";
@@ -73,8 +74,8 @@
     else if (event.key === "PageUp") { search.move(-8); event.preventDefault(); }
     else if (event.key === "Enter" && hit) {
       event.preventDefault();
-      if (event.ctrlKey) api.reveal(hit.path, search.query); else api.open(hit.path, hit.loc, search.query);
-    } else if (event.key.toLowerCase() === "c" && event.ctrlKey && hit && !window.getSelection()?.toString()
+      if (primary(event)) api.reveal(hit.path, search.query); else api.open(hit.path, hit.loc, search.query);
+    } else if (event.key.toLowerCase() === "c" && primary(event) && hit && !window.getSelection()?.toString()
                && input?.selectionStart === input?.selectionEnd) {
       api.copy(hit.path, event.shiftKey ? "path" : "file", search.query); event.preventDefault();
     } else if (event.key === "Escape") {

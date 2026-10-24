@@ -5,6 +5,7 @@
 
   import { untrack } from "svelte";
   import { api, pictureUrl, type Entry } from "../lib/api";
+  import { primary } from "../lib/keys";
   import { KIND_NAME, dowse, size, when } from "../lib/app.svelte";
   import { search } from "../lib/search.svelte";
   import type { IconName } from "../lib/icons";
@@ -111,7 +112,7 @@
   } : null);
 
   function click(entry: Entry, event: MouseEvent): void {
-    if (event.ctrlKey) {
+    if (primary(event)) {
       const next = new Set(selected);
       next.has(entry.path) ? next.delete(entry.path) : next.add(entry.path);
       selected = next;
@@ -138,7 +139,7 @@
     } else if (event.key === "Delete" && view !== REMOVED) { event.preventDefault(); removal = [...chosen]; }
     else if (event.key === "Escape") { removal = null; }
     else if (event.key === "Enter" && focused) { focused.isFolder ? (view = focused.path) : api.open(focused.path, null); }
-    else if (event.key.toLowerCase() === "a" && event.ctrlKey) { event.preventDefault(); selected = new Set(shown.map((e) => e.path)); }
+    else if (event.key.toLowerCase() === "a" && primary(event)) { event.preventDefault(); selected = new Set(shown.map((e) => e.path)); }
   }
 
   const chosen = $derived(selected.size ? [...selected] : current ? [current] : []);
