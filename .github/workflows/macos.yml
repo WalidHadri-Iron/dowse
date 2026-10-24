@@ -160,8 +160,12 @@ jobs:
           codesign --verify --deep --strict --verbose=2 "$HOME/Applications/Dowse.app"
           "$HOME/Applications/Dowse.app/Contents/MacOS/Dowse" -m dowse.cli setup --backend metal
 
-      - name: The installed app, started as Finder starts it
-        run: uv run python scripts/mac_smoke.py "$RUNNER_TEMP/mac-app" --app "$HOME/Applications/Dowse.app"
+      - name: The installed app's first start, set up through its welcome (the model copied, the runtime downloaded)
+        run: |
+          home="$RUNNER_TEMP/first-home"
+          mkdir -p "$home"
+          cp -R .dowse-home/Models "$home/"
+          DOWSE_HOME="$home" uv run python scripts/mac_smoke.py "$RUNNER_TEMP/mac-app" --app "$HOME/Applications/Dowse.app" --first-run
 
       - name: Screenshots and logs
         if: always()
@@ -170,7 +174,7 @@ jobs:
           name: mac-installed-app
           path: |
             ${{ runner.temp }}/mac-app
-            .dowse-home/Logs
+            ${{ runner.temp }}/first-home/Logs
 
       - name: Disk image
         uses: actions/upload-artifact@v4

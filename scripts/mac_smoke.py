@@ -6,12 +6,15 @@ it with every process it started. Fails if the app doesn't start, find the photo
     DOWSE_HOME=<a set-up home> uv run python scripts/mac_smoke.py <out dir> [--app <Dowse.app>]
 
 With --app, the app is that Dowse.app (built by scripts/build_mac_app.py, installed), started by its own program, as
-Finder starts it; its processes must be its own (named Dowse, not Python).
+Finder starts it; its processes must be its own (named Dowse, not Python). With --first-run, the home is new (only its
+Models, to save the download): the app is set up through its own welcome (the runtime downloaded, the folder chosen,
+opening at login asked for, whose LaunchAgent must start this app; it's removed after).
 """
 
 import argparse
 import json
 import os
+import plistlib
 import subprocess
 import sys
 import time
@@ -68,6 +71,35 @@ def shoot(out: Path, name: str) -> None:
     print(f"{name}: {picture if picture.exists() else 'no screenshot (screen recording not allowed here)'}")
 
 
+def welcome(port: int, cookie: str) -> None:
+    """Setup as the welcome window does it: the model and runtime prepared, then the folder chosen, opening at login on."""
+    if not api(port, cookie, "GET", "/api/state")["setupNeeded"]:
+        raise SystemExit("a new home, yet the app says it's set up")
+    api(port, cookie, "POST", "/api/setup/start", {})
+    seen = None
+
+    def finished():
+        nonlocal seen
+        progress = api(port, cookie, "GET", "/api/setup")["progress"]
+        if progress and progress["stage"] != seen:
+            seen = progress["stage"]
+            print("setup:", seen)
+        try:
+            api(port, cookie, "POST", "/api/setup/finish", {"folders": [str(FOLDER)], "startup": True})
+            return True
+        except urllib.error.HTTPError as error:
+            if error.code != 409:   # 409: the model isn't ready yet
+                raise
+            return False
+    until(finished, 600, "setup through the welcome")
+    agent = Path.home() / "Library" / "LaunchAgents" / "app.dowse.login.plist"
+    login = plistlib.loads(agent.read_bytes())["ProgramArguments"]
+    agent.unlink()
+    print("opens at login:", login)
+    if not login[0].endswith("/Dowse.app/Contents/MacOS/Dowse") and PROGRAM[0].endswith("/MacOS/Dowse"):
+        raise SystemExit("opening at login wouldn't start Dowse.app")
+
+
 def program_of(pid: int) -> str:
     return subprocess.run(["ps", "-o", "comm=", "-p", str(pid)], capture_output=True, text=True).stdout.strip()
 
@@ -76,6 +108,7 @@ def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("out")
     parser.add_argument("--app", help="an installed Dowse.app")
+    parser.add_argument("--first-run", action="store_true", help="set up through the app's welcome")
     args = parser.parse_args()
     out = Path(args.out)
     sys.stdout.reconfigure(line_buffering=True)   # in order with what the app prints
@@ -84,9 +117,9 @@ def main() -> None:
     out.mkdir(parents=True, exist_ok=True)
     print("home:", paths.home())
     chosen = settings.load()
-    chosen.update(folders=[str(FOLDER)], explorer_menu=False, screenshots=False)
+    chosen.update(explorer_menu=False, screenshots=False, **({} if args.first_run else {"folders": [str(FOLDER)]}))
     settings.save(chosen)
-    app = launch("--background", wait=False)                       # the app, in the menu bar
+    app = launch(*([] if args.first_run else ["--background"]), wait=False)   # the app (first: its welcome)
     try:
         state = until(lambda: (paths.home() / "app.json").exists() and json.loads((paths.home() / "app.json").read_text()),
                       90, "the app announcing itself (app.json)")
@@ -95,6 +128,8 @@ def main() -> None:
         print("app up:", url, "pid", state.get("pid"))
         with urllib.request.urlopen(f"{url}api/session?t={state['token']}", timeout=10) as response:
             cookie = response.headers["Set-Cookie"].split(";")[0]
+        if args.first_run:
+            welcome(state["port"], cookie)
         status = until(lambda: (lambda s: s if s["state"] == "idle" and s["done"] >= 3 else None)(
             api(state["port"], cookie, "GET", "/api/state")["status"]), 300, "reading the folder")
         print("read:", status)
