@@ -683,3 +683,28 @@ def test_the_server_never_looks_up_the_machines_name(monkeypatch, tmp_path):
         assert server.port and not asked
     finally:
         server._http.server_close()
+
+
+@pytest.mark.skipif(sys.platform.startswith("linux"), reason="Linux's tray is Qt's, not pystray's")
+def test_the_tray_menu_is_built_and_does_what_it_says():
+    """pystray checks each callback's parameters when the menu is made: a menu it refuses stops the app at start."""
+    import pystray
+    from types import SimpleNamespace
+
+    from dowse.desktop.indexing import Status
+    from dowse.desktop.native import Native
+
+    native = Native.__new__(Native)
+    asked = []
+    native.app = SimpleNamespace(change_settings=lambda change: asked.append(change))
+    native._status, native._paused, native.tray = Status("idle", "Up to date · 4 files"), False, None
+    native.show_popup = lambda: asked.append("popup")
+    native._tray(start=False)
+    items = [item for item in native.tray.menu.items if item is not pystray.Menu.SEPARATOR]
+    assert [item.text for item in items][:2] == ["Up to date · 4 files", "Quick search"]
+    assert next(item for item in items if item.default).text == "Quick search"
+    pause = next(item for item in items if item.text == "Pause indexing")
+    assert pause.checked is False
+    pause(native.tray)
+    next(item for item in items if item.text == "Quick search")(native.tray)
+    assert asked == [{"paused": True}, "popup"]

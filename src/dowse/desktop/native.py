@@ -436,18 +436,24 @@ class Native:
         import pystray
         from PIL import Image
 
+        def of_item(read):   # pystray calls a label or a check mark with the item (and counts the parameters)
+            return lambda _item: read()
+
+        def run(action):     # and an action with none
+            return lambda: action()
+
         items, default = [], True
         for entry in self._entries():
             if entry is None:
                 items.append(pystray.Menu.SEPARATOR)
                 continue
             label, action, checked = entry
-            text = (lambda _, label=label: label()) if callable(label) else label
+            text = of_item(label) if callable(label) else label
             if action is None:
                 items.append(pystray.MenuItem(text, None, enabled=False))
                 continue
-            items.append(pystray.MenuItem(text, lambda _icon, _item, action=action: action(), default=default,
-                                          checked=(lambda _, checked=checked: checked()) if checked else None))
+            items.append(pystray.MenuItem(text, run(action), default=default,
+                                          checked=of_item(checked) if checked else None))
             default = False
         menu = pystray.Menu(*items)
         if sys.platform == "darwin":
