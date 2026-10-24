@@ -561,6 +561,7 @@ def test_hotkeys_parse():
             winapi.parse_hotkey(bad)
 
 
+@windows   # SumatraPDF, Windows' "open at page"
 def test_opening_at_the_place():
     sumatra = r"C:\Program Files\SumatraPDF\SumatraPDF.exe"
     assert system.open_command(r"C:\docs\lease.pdf", Kind.PDF, 7.0, sumatra) == \

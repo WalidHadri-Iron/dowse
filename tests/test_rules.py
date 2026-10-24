@@ -9,9 +9,9 @@ from dowse.selection import Selection
 
 
 def test_classify():
-    assert rules.classify(r"C:\x\IMG_1234.JPG") is Kind.IMAGE
-    assert rules.classify(r"C:\x\Screenshot (12).png") is Kind.SCREENSHOT
-    assert rules.classify(r"C:\Users\me\Pictures\Screenshots\anything.png") is Kind.SCREENSHOT
+    assert rules.classify(os.path.join("x", "IMG_1234.JPG")) is Kind.IMAGE
+    assert rules.classify(os.path.join("x", "Screenshot (12).png")) is Kind.SCREENSHOT
+    assert rules.classify(os.path.join("Users", "me", "Pictures", "Screenshots", "anything.png")) is Kind.SCREENSHOT
     assert rules.classify("lease.pdf") is Kind.PDF
     assert rules.classify("minutes.docx") is Kind.DOC
     assert rules.classify("song.mp3") is Kind.AUDIO

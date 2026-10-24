@@ -69,13 +69,13 @@ def test_spelling_distance():
 
 
 def test_titles_from_names():
-    assert title_of(r"C:\x\Grandma's soup.txt", None) == "Grandma's soup"
-    assert title_of(r"C:\x\Cover letter - Lumen Labs.docx", None) == "Cover letter Lumen Labs"
-    assert title_of(r"C:\x\Q3 budget.docx", "Minutes of the Q3 meeting") == "Minutes of the Q3 meeting"
+    assert title_of(os.path.join("x", "Grandma's soup.txt"), None) == "Grandma's soup"
+    assert title_of(os.path.join("x", "Cover letter - Lumen Labs.docx"), None) == "Cover letter Lumen Labs"
+    assert title_of(os.path.join("x", "Q3 budget.docx"), "Minutes of the Q3 meeting") == "Minutes of the Q3 meeting"
     for nameless in ("IMG_1001.jpg", "scan_0042.pdf", "doc_scan_001.pdf", "2025-02-05 11-04-13.txt",
                      "new document (2).docx"):
-        assert title_of(rf"C:\x\{nameless}", None) is None
-    assert title_of(r"C:\x\a.docx", "Microsoft Word - a.docx") is None
+        assert title_of(os.path.join("x", nameless), None) is None
+    assert title_of(os.path.join("x", "a.docx"), "Microsoft Word - a.docx") is None
 
 
 def test_more_kinds_of_documents(tmp_path):

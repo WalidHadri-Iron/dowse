@@ -1,0 +1,46 @@
+# macOS, the first step towards a Mac version: the interface's checks and the tests (without a model server) on a
+# clean Mac (Apple Silicon). Only in the public repository: macOS minutes are free for public repositories.
+name: macOS
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: macos-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    if: github.repository == 'WalidHadri-Iron/dowse'
+    runs-on: macos-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: "3.12"
+          enable-cache: true
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - name: The interface
+        working-directory: web
+        run: |
+          npm ci
+          npm run check
+          npm test
+          npm run build
+
+      - name: The tests (without a model server)
+        run: |
+          uv sync
+          uv run python -c "import platform, dowse; print(platform.platform(), platform.machine(), 'dowse', dowse.__version__)"
+          uv run pytest -q -m "not server"

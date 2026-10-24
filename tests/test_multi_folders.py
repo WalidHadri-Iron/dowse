@@ -1,6 +1,8 @@
 """Multiple search folders form a union, with legacy callers and ranking kept intact."""
 
 import json
+import os
+import sys
 from pathlib import Path
 from urllib.parse import urlencode
 
@@ -31,9 +33,11 @@ def test_single_folder_compatibility_and_no_duplicate_hits_for_overlapping_folde
     running, root, _ = app
     legacy = search(running, str(root))
     one = search(running, [str(root)])
-    overlap = search(running, [str(root), str(root / "notes"), str(root).upper() + "\\"])
+    # the same folder written another way: on Windows other letter case and a trailing backslash, elsewhere a trailing slash
+    same = str(root).upper() + "\\" if sys.platform == "win32" else str(root) + os.sep
+    overlap = search(running, [str(root), str(root / "notes"), same])
     assert one["hits"] == legacy["hits"] == overlap["hits"]
-    assert len(overlap["filters"]) == 2  # equivalent casing/slashes deduplicated; parent/child retained
+    assert len(overlap["filters"]) == 2  # equivalent spellings deduplicated; parent/child retained
     assert len(search(running, [])['hits']) == 2  # empty means all folders
 
 
