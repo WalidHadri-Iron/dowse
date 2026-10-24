@@ -671,3 +671,15 @@ def test_paging_through_a_documents_passages(app):
     assert first["loc"] == 0 and first["count"] == 1 and "«rent»" in first["text"]
     beyond = json.loads(request(running.server, "GET", f"/api/passage?segment=0&q=&path={rent}&loc=1")[2])
     assert beyond["text"] is None and beyond["count"] == 1   # past the last passage: nothing, and how many there are
+
+
+def test_the_server_never_looks_up_the_machines_name(monkeypatch, tmp_path):
+    """socket.getfqdn on a Mac reaches the local network (Bonjour), and macOS asks to allow it: never needed here."""
+    import socket
+    asked = []
+    monkeypatch.setattr(socket, "getfqdn", lambda *args: asked.append(args) or "machine.local")
+    server = Server(static=tmp_path)
+    try:
+        assert server.port and not asked
+    finally:
+        server._http.server_close()

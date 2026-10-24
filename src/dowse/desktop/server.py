@@ -20,6 +20,7 @@ import os
 import queue
 import re
 import secrets
+import socketserver
 import shutil
 import sys
 import tempfile
@@ -101,6 +102,13 @@ class Events:
 
 class _HTTP(http.server.ThreadingHTTPServer):
     request_queue_size = 128   # Explorer starts one launch per selected file, all at once
+
+    def server_bind(self):
+        """Binds without looking up the machine's name: http.server's own bind asks for 127.0.0.1's fully qualified
+        name (socket.getfqdn), which on a Mac goes out on the local network (Bonjour) and makes macOS ask the person
+        to allow Dowse to find devices on their network. The name is never used."""
+        socketserver.TCPServer.server_bind(self)
+        self.server_name, self.server_port = self.server_address[:2]
 
     def handle_error(self, request, client_address):
         """A page that let go of a request (a picture scrolled away, a player seeking) isn't news; anything else
