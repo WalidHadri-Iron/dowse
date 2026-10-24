@@ -1,6 +1,6 @@
 [project]
 name = "dowse"
-version = "0.1.0"
+version = "0.1.1"
 description = "Search the files on your PC by what's in them: EmbeddingGemma 2 on llama.cpp, GPU or CPU."
 readme = "README.md"
 requires-python = ">=3.12,<3.14"

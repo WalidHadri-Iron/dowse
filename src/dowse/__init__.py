@@ -2,7 +2,7 @@
 
 import os
 
-__version__ = "0.1.0"
+__version__ = "0.1.1"
 
 # numpy's BLAS commits a buffer per processor thread when it's imported (750 MB on a 24-thread CPU). Dowse's one
 # matrix product a query is bound by converting fp16 vectors, not by threads: one is as fast (measured: 157 ms against
