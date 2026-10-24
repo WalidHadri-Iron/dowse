@@ -1,4 +1,4 @@
-"""Builds Dowse for a Mac (Apple Silicon): dist/Dowse.app and dist/Dowse-<version>.dmg.
+"""Builds Dowse for a Mac (Apple Silicon, macOS 14 or later): dist/Dowse.app and dist/Dowse-<version>.dmg.
 
     uv run python scripts/build_mac_app.py [--no-dmg]      (on a Mac with Xcode's command line tools)
 
@@ -42,7 +42,7 @@ PYTHON_URL = f"https://github.com/astral-sh/python-build-standalone/releases/dow
 PYTHON_SHA256 = "ad8d0c637c0a36b967b310e2c07254f4d2ca8cabaa7699e55ed6290aceb481a2"
 TAG = "python" + ".".join(PYTHON.split(".")[:2])   # python3.12
 BUNDLE_ID = "app.dowse.Dowse"
-MINIMUM_MACOS = "12.0"
+MINIMUM_MACOS = "14.0"   # the oldest macOS the binary libraries have wheels for (PyAV's arm64 ones)
 
 
 def run(*command: str | Path, **options) -> subprocess.CompletedProcess:
@@ -94,6 +94,7 @@ def stage(app_version: str) -> Path:
        "-o", str(requirements))
     common = ["--target", str(site), "--python", str(python), "--python-platform", "aarch64-apple-darwin",
               "--no-cache"]
+    os.environ["MACOSX_DEPLOYMENT_TARGET"] = MINIMUM_MACOS   # the wheels uv may choose: for that macOS and later
     uv("pip", "install", *common, "-r", str(requirements))
     wheel = next(wheels.glob(f"dowse-{app_version}-*.whl"))
     uv("pip", "install", *common, "--no-deps", str(wheel))
@@ -126,7 +127,7 @@ def sign(app: Path) -> None:
     if identity:
         flags += ["--options", "runtime", "--timestamp", "--entitlements", str(PACKAGING / "entitlements.plist")]
     code = [p for p in (app / "Contents" / "Resources").rglob("*") if p.is_file() and not p.is_symlink()
-            and (p.suffix in (".so", ".dylib") or os.access(p, os.X_OK) and _is_macho(p))]
+            and _is_macho(p)]
     for start in range(0, len(code), 200):
         run("codesign", *flags, *code[start:start + 200])
     run("codesign", *flags, app)
