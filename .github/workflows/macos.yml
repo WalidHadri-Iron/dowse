@@ -44,3 +44,42 @@ jobs:
           uv sync
           uv run python -c "import platform, dowse; print(platform.platform(), platform.machine(), 'dowse', dowse.__version__)"
           uv run pytest -q -m "not server"
+
+  # The vectors a Mac makes must be the reference's (tests/reference: cosine ≥ 0.999), or a Mac's index would
+  # disagree with everyone else's. The processor must pass; Metal is tried too (whether a hosted Mac exposes its GPU
+  # to the runner is what this tells).
+  reference:
+    if: github.repository == 'WalidHadri-Iron/dowse'
+    needs: test
+    runs-on: macos-latest
+    timeout-minutes: 60
+    env:
+      DOWSE_HOME: ${{ github.workspace }}/.dowse-home
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: "3.12"
+          enable-cache: true
+
+      - name: Cache the model (865 MB)
+        uses: actions/cache@v4
+        with:
+          path: .dowse-home/Models
+          key: dowse-models-${{ hashFiles('src/dowse/modelfiles.py') }}
+
+      - name: The model and the processor's runtime
+        run: |
+          uv sync
+          uv run dowse setup --backend cpu
+
+      - name: Reference vectors on the processor
+        run: DOWSE_BACKEND=cpu uv run pytest -q tests/test_reference.py
+
+      - name: Reference vectors on Metal (the Apple GPU)
+        continue-on-error: true
+        run: |
+          uv run dowse setup --backend metal
+          "$(uv run python -c 'from dowse import runtime; print(runtime.executable("metal"))')" --list-devices || true
+          DOWSE_BACKEND=metal uv run pytest -q tests/test_reference.py

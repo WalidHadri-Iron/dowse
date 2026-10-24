@@ -1,4 +1,5 @@
-"""Where Dowse keeps its things: %LOCALAPPDATA%\\Dowse on Windows, or $DOWSE_HOME."""
+"""Where Dowse keeps its things: %LOCALAPPDATA%\\Dowse on Windows, ~/Library/Application Support/Dowse on a Mac,
+$XDG_DATA_HOME/dowse elsewhere, or $DOWSE_HOME."""
 
 import os
 import sys
@@ -10,6 +11,8 @@ def home() -> Path:
         return Path(chosen)
     if sys.platform == "win32":
         return Path(os.environ.get("LOCALAPPDATA", Path.home() / "AppData" / "Local")) / "Dowse"
+    if sys.platform == "darwin":
+        return Path.home() / "Library" / "Application Support" / "Dowse"
     return Path(os.environ.get("XDG_DATA_HOME", Path.home() / ".local" / "share")) / "dowse"
 
 

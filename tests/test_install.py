@@ -124,6 +124,7 @@ def test_integrated_graphics_never_wins_even_when_it_reports_more_memory():
 
 
 def test_a_pc_without_a_graphics_card_gets_the_processor_build_only(monkeypatch):
+    monkeypatch.setattr(runtime, "GPU_BACKEND", "vulkan")   # a Windows PC
     installed = []
     monkeypatch.setattr(runtime, "planned_gpu", lambda: None)
     monkeypatch.setattr(runtime, "install", lambda backend, progress=None: installed.append(backend))
@@ -132,6 +133,7 @@ def test_a_pc_without_a_graphics_card_gets_the_processor_build_only(monkeypatch)
 
 
 def test_the_card_chosen_is_remembered_by_name(monkeypatch, tmp_path):
+    monkeypatch.setattr(runtime, "GPU_BACKEND", "vulkan")   # a Windows PC
     monkeypatch.setenv("DOWSE_HOME", str(tmp_path))
     monkeypatch.setattr(runtime, "planned_gpu", lambda: "NVIDIA GeForce RTX 3060")
     monkeypatch.setattr(runtime, "install", lambda backend, progress=None: None)
@@ -301,3 +303,64 @@ def test_dowse_exe_has_dowse_s_name_and_icon(tmp_path):
     assert ctypes.windll.version.VerQueryValueW(data, r"\StringFileInfo\040904B0\FileDescription",
                                                 ctypes.byref(value), ctypes.byref(length))
     assert value.value == "Dowse"
+
+
+def _tarball(path, members):
+    """A .tar.gz like llama.cpp's macOS build: [(name, kind, content)], kind "file", "link" (content: the target)."""
+    import io
+    import tarfile
+    with tarfile.open(path, "w:gz") as tar:
+        for name, kind, content in members:
+            info = tarfile.TarInfo(name)
+            if kind == "link":
+                info.type, info.linkname = tarfile.SYMTYPE, content
+                tar.addfile(info)
+            else:
+                data = content.encode()
+                info.size, info.mode = len(data), 0o755
+                tar.addfile(info, io.BytesIO(data))
+
+
+def test_a_macos_build_is_unpacked_out_of_its_folder_with_its_library_links(tmp_path):
+    archive, into = tmp_path / "llama-b1-bin-macos-arm64.tar.gz", tmp_path / "b1-metal.tmp"
+    members = [("llama-b1/llama-server", "file", "#!/bin/sh"), ("llama-b1/libggml.0.26.0.dylib", "file", "lib")]
+    if sys.platform != "win32":   # (symbolic links need privileges on Windows, where builds come as zips anyway)
+        members.append(("llama-b1/libggml.0.dylib", "link", "libggml.0.26.0.dylib"))
+    _tarball(archive, members)
+    runtime._untar(archive, into)
+    assert (into / "llama-server").read_text() == "#!/bin/sh"
+    assert not (into / "llama-b1").exists()
+    if sys.platform != "win32":
+        assert (into / "libggml.0.dylib").is_symlink() and (into / "libggml.0.dylib").read_text() == "lib"
+        assert os.access(into / "llama-server", os.X_OK)
+
+
+def test_an_archive_cannot_write_outside_its_folder(tmp_path):
+    archive = tmp_path / "evil.tar.gz"
+    _tarball(archive, [("llama-b1/../../escaped.txt", "file", "gotcha")])
+    with pytest.raises(Exception):
+        runtime._untar(archive, tmp_path / "into" / "b1-cpu.tmp")
+    assert not (tmp_path / "escaped.txt").exists()
+
+
+def test_a_mac_runs_its_gpu_through_metal_from_the_same_build_as_the_processor(monkeypatch):
+    monkeypatch.setattr(runtime.sys, "platform", "darwin")
+    monkeypatch.setattr(runtime.platform, "machine", lambda: "arm64")
+    assets = runtime._platform_assets()
+    assert set(assets) == {"cpu", "metal"} and assets["cpu"] == assets["metal"]
+    assert assets["metal"][0].endswith("-bin-macos-arm64.tar.gz")
+    monkeypatch.setattr(runtime.platform, "machine", lambda: "x86_64")
+    assert set(runtime._platform_assets()) == {"cpu"}   # an Intel Mac: the processor
+
+
+def test_each_system_keeps_dowse_where_its_apps_keep_their_things(monkeypatch, tmp_path):
+    from dowse import paths
+    monkeypatch.delenv("DOWSE_HOME", raising=False)
+    monkeypatch.setattr(paths.Path, "home", lambda: tmp_path)
+    monkeypatch.setattr(paths.sys, "platform", "darwin")
+    assert paths.home() == tmp_path / "Library" / "Application Support" / "Dowse"
+    monkeypatch.setattr(paths.sys, "platform", "linux")
+    monkeypatch.delenv("XDG_DATA_HOME", raising=False)
+    assert paths.home() == tmp_path / ".local" / "share" / "dowse"
+    monkeypatch.setenv("DOWSE_HOME", str(tmp_path / "chosen"))
+    assert paths.home() == tmp_path / "chosen"

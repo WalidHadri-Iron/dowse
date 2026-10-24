@@ -1,13 +1,14 @@
 """llama.cpp as a sidecar: the official llama-server build for this PC's hardware, started and stopped on demand.
 
-No compiling: ggml-org publishes Windows builds for every backend, and the stock `/v1/embeddings` endpoint takes text,
-images and audio for EmbeddingGemma 2. Backends agree (CPU against Vulkan: cosine ≥ 0.9994 on every reference
+No compiling: ggml-org publishes Windows and macOS builds for every backend, and the stock `/v1/embeddings` endpoint
+takes text, images and audio for EmbeddingGemma 2. Backends agree (CPU against Vulkan: cosine ≥ 0.9994 on every reference
 input, tests/test_reference.py) once images arrive at their final size (`embedder.sized`).
 
 Backends:
   vulkan  any GPU (NVIDIA, AMD, Intel), a 30 MB download. The default when there's a GPU worth using.
   cuda    NVIDIA only, ~550 MB with its runtime DLLs. Opt-in.
   cpu     everywhere. Queries take the same ~50 ms; indexing images is ~7× slower (see `profile`).
+  metal   macOS on Apple Silicon: the GPU through Metal, in the same 12 MB build as the processor's.
 
 Any PC must end up with something that works: no graphics card, one without a Vulkan driver, a driver that crashes
 on the model, a PC without the Visual C++ runtime. The card is the one Windows lists with the most dedicated memory
@@ -19,11 +20,13 @@ the installed app and is copied beside each build (`REDIST`).
 import json
 import logging
 import os
+import platform
 import re
 import shutil
 import socket
 import subprocess
 import sys
+import tarfile
 import time
 import zipfile
 from dataclasses import asdict, dataclass
@@ -36,13 +39,24 @@ from .download import Progress, fetch
 
 TAG = "b11574"
 RELEASES = f"https://github.com/ggml-org/llama.cpp/releases/download/{TAG}"
-# The zips each backend needs, unpacked into one folder.
-ASSETS = {
-    "cpu": [f"llama-{TAG}-bin-win-cpu-x64.zip"],
-    "vulkan": [f"llama-{TAG}-bin-win-vulkan-x64.zip"],
-    "cuda": [f"llama-{TAG}-bin-win-cuda-12.4-x64.zip", "cudart-llama-bin-win-cuda-12.4-x64.zip"],
-}
+
+
+def _platform_assets() -> dict[str, list[str]]:
+    """The archives each backend needs on this system, unpacked into one folder."""
+    if sys.platform == "darwin":
+        # One build holds both: Metal on Apple Silicon, and the processor (`--device none`). An Intel Mac: the processor.
+        build = f"llama-{TAG}-bin-macos-{'arm64' if platform.machine() == 'arm64' else 'x64'}.tar.gz"
+        return {"cpu": [build], "metal": [build]} if platform.machine() == "arm64" else {"cpu": [build]}
+    return {
+        "cpu": [f"llama-{TAG}-bin-win-cpu-x64.zip"],
+        "vulkan": [f"llama-{TAG}-bin-win-vulkan-x64.zip"],
+        "cuda": [f"llama-{TAG}-bin-win-cuda-12.4-x64.zip", "cudart-llama-bin-win-cuda-12.4-x64.zip"],
+    }
+
+
+ASSETS = _platform_assets()
 BACKENDS = tuple(ASSETS)
+GPU_BACKEND = "metal" if sys.platform == "darwin" else "vulkan"   # what `choose("auto")` runs a GPU with
 EXE = "llama-server.exe" if sys.platform == "win32" else "llama-server"
 
 # A GPU with less dedicated memory than this is integrated (its "memory" is borrowed system RAM): auto mode uses the
@@ -92,18 +106,43 @@ def redist_folder() -> Path:
 
 
 def _unpack(url: str, archive: Path, into: Path, progress: Progress | None) -> None:
-    """Downloads and unpacks one zip. A zip that's damaged (cut short, a bad sector) is fetched again once."""
+    """Downloads and unpacks one archive (a Windows zip, a macOS .tar.gz). One that's damaged (cut short, a bad
+    sector) is fetched again once."""
     for attempt in range(2):
         fetch(url, archive, progress=progress)
         try:
+            if archive.name.endswith(".tar.gz"):
+                _untar(archive, into)
+                return
             with zipfile.ZipFile(archive) as zip_file:
                 if zip_file.testzip() is None:
                     zip_file.extractall(into)
                     return
-        except zipfile.BadZipFile:
+        except (zipfile.BadZipFile, tarfile.TarError, EOFError, OSError):
             pass
         archive.unlink(missing_ok=True)
     raise OSError(f"{archive.name} arrived damaged twice: check the connection and try again")
+
+
+def _untar(archive: Path, into: Path) -> None:
+    """A .tar.gz unpacked into `into`, its files lifted out of the one folder the archive keeps them in
+    (llama-b11574/). The `data` filter refuses paths and links that would land outside `into`."""
+    unpacked = into.with_name(into.name + ".untar")
+    shutil.rmtree(unpacked, ignore_errors=True)
+    unpacked.mkdir(parents=True)
+    with tarfile.open(archive, "r:gz") as tar:
+        tar.extractall(unpacked, filter="data")
+    entries = list(unpacked.iterdir())
+    top = entries[0] if len(entries) == 1 and entries[0].is_dir() else unpacked
+    into.mkdir(parents=True, exist_ok=True)
+    for entry in top.iterdir():
+        target = into / entry.name
+        if target.is_dir() and not target.is_symlink():
+            shutil.rmtree(target)
+        elif target.exists() or target.is_symlink():
+            target.unlink()
+        entry.rename(target)
+    shutil.rmtree(unpacked, ignore_errors=True)
 
 
 def install(backend: str, progress: Progress | None = None) -> Path:
@@ -268,6 +307,8 @@ def graphics_cards() -> dict[str, int]:
 
 def planned_gpu() -> str | None:
     """The graphics card `choose("auto")` will use, by name, or None (the CPU)."""
+    if sys.platform == "darwin":   # Apple Silicon's GPU is always there; an Intel Mac indexes on the processor
+        return "Apple GPU" if "metal" in ASSETS else None
     cards = {name: mb for name, mb in graphics_cards().items() if mb >= MIN_DEDICATED_MB}
     return max(cards, key=cards.get) if cards else None
 
@@ -293,12 +334,12 @@ def best_gpu(found: list[Device]) -> Device | None:
 
 
 def choose(backend: str = "auto", device: str | None = None, progress: Progress | None = None) -> Choice:
-    """Picks (and installs) the backend. `auto`: Vulkan on a discrete GPU, else the CPU (without fetching the Vulkan
-    build at all when Windows lists no card worth it)."""
+    """Picks (and installs) the backend. `auto`: the GPU backend (Vulkan on Windows, Metal on a Mac) on a GPU worth
+    it, else the CPU (without fetching a GPU build at all when the system lists no card worth it)."""
     if backend == "cpu":
         install("cpu", progress)
         return Choice("cpu", None)
-    if backend in ("vulkan", "cuda"):
+    if backend in ("vulkan", "cuda", "metal"):
         install(backend, progress)
         found = devices(backend)
         gpu = next((d for d in found if d.id == device), None) if device else best_gpu(found) or next(iter(found), None)
@@ -308,9 +349,9 @@ def choose(backend: str = "auto", device: str | None = None, progress: Progress 
     if backend != "auto":
         raise ValueError(f"backend must be auto or one of {', '.join(BACKENDS)}")
     if planned_gpu() is not None:
-        install("vulkan", progress)
-        if gpu := best_gpu(devices("vulkan")):
-            return Choice("vulkan", gpu.id, gpu.name)
+        install(GPU_BACKEND, progress)
+        if gpu := best_gpu(devices(GPU_BACKEND)):
+            return Choice(GPU_BACKEND, gpu.id, gpu.name)
     install("cpu", progress)
     return Choice("cpu", None)
 
