@@ -1,5 +1,6 @@
 """The few Windows calls the app needs: a global hotkey, starting with Windows, which app opens a file type, and the
-app's identity on the taskbar. Each degrades to "not available" off Windows, so the app still imports anywhere."""
+app's identity on the taskbar. On a Mac, the same questions are answered by `macapi`; elsewhere each degrades to
+"not available", so the app still imports anywhere."""
 
 import contextlib
 import ctypes
@@ -15,12 +16,16 @@ _KEYS |= {f"f{n}": 0x6F + n for n in range(1, 13)}
 _KEYS |= {chr(c).lower(): c for c in range(ord("A"), ord("Z") + 1)} | {str(d): 0x30 + d for d in range(10)}
 
 WINDOWS = sys.platform == "win32"
+MAC = sys.platform == "darwin"
 
 
 def startup_error(message: str) -> None:
     """A failure before the app/logs can safely open (pythonw has no console)."""
     if WINDOWS:
         ctypes.windll.user32.MessageBoxW(None, message, "Dowse couldn't start", 0x10)   # MB_ICONERROR
+    elif MAC:
+        from . import macapi
+        macapi.startup_error(message)
     else:
         print(message, file=sys.stderr)
 
@@ -108,7 +113,8 @@ def start_again() -> None:
 
     program, arguments = launcher()
     flags = getattr(subprocess, "DETACHED_PROCESS", 0) | getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0)
-    subprocess.Popen([program, *arguments, "--restart"], creationflags=flags, close_fds=True)
+    subprocess.Popen([program, *arguments, "--restart"], creationflags=flags, close_fds=True,
+                     start_new_session=not WINDOWS)   # (elsewhere: its own session, so it outlives this process)
 
 
 def launch_command() -> str:
@@ -117,6 +123,10 @@ def launch_command() -> str:
 
 
 def starts_with_windows() -> bool:
+    """Does the app start when the user logs in? (Windows' Run key; a Mac's LaunchAgent.)"""
+    if MAC:
+        from . import macapi
+        return macapi.starts_at_login()
     if not WINDOWS:
         return False
     import winreg
@@ -130,6 +140,10 @@ def starts_with_windows() -> bool:
 
 
 def set_starts_with_windows(enabled: bool) -> None:
+    if MAC:
+        from . import macapi
+        macapi.set_starts_at_login(enabled, *launcher())
+        return
     if not WINDOWS:
         return
     import winreg
@@ -176,6 +190,9 @@ class _GUID(ctypes.Structure):
 def known_folder(name: str) -> str:
     """The real location of the user's Desktop, Documents, Downloads, Pictures, Videos or Music."""
     fallback = os.path.join(os.path.expanduser("~"), name)
+    if MAC:
+        from . import macapi
+        return macapi.known_folder(name)
     if not WINDOWS:
         return fallback
     guid = _GUID()
@@ -198,6 +215,9 @@ class _PowerStatus(ctypes.Structure):
 
 def power() -> tuple[bool, bool]:
     """(on battery, Battery Saver on). A desktop without a battery is never on battery."""
+    if MAC:
+        from . import macapi
+        return macapi.power()
     if not WINDOWS:
         return False, False
     status = _PowerStatus()

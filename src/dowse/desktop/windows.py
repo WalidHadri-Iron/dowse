@@ -1,4 +1,5 @@
-"""One app window, in a process of its own: quick search and the workspace in the same WebView2.
+"""One app window, in a process of its own: quick search and the workspace in the same web view (WebView2 on
+Windows, WKWebView on a Mac).
 
 The app (tray, shortcut, engine, server) starts this process when a window is wanted, and it exits after `IDLE`
 seconds with no window shown: WebView2 holds ~240 MB for as long as any window exists, and a tray app at rest
@@ -10,7 +11,6 @@ shouldn't. Commands come in on stdin, one JSON object a line ({"id", "op", ...})
 
 import contextlib
 import ctypes
-import ctypes.wintypes as w
 import json
 import os
 import sys
@@ -30,27 +30,185 @@ MAIN_MIN = (980, 620)
 IDLE = float(os.environ.get("DOWSE_WINDOWS_IDLE", 600))   # seconds with no window shown before this process ends
 
 
-def _cursor_screen() -> tuple[float, float, float, float]:
-    """The work area of the screen the mouse is on, in scaled pixels."""
-    point = w.POINT()
-    ctypes.windll.user32.GetCursorPos(ctypes.byref(point))
-    monitor = ctypes.windll.user32.MonitorFromPoint(point, 2)
+class _WindowsHost:
+    """What the window needs from Windows: WinForms behind pywebview, and user32."""
 
-    class MonitorInfo(ctypes.Structure):
-        _fields_ = [("cbSize", w.DWORD), ("rcMonitor", w.RECT), ("rcWork", w.RECT), ("dwFlags", w.DWORD)]
+    GUI = "edgechromium"
 
-    info = MonitorInfo()
-    info.cbSize = ctypes.sizeof(info)
-    ctypes.windll.user32.GetMonitorInfoW(monitor, ctypes.byref(info))
-    scale = ctypes.windll.user32.GetDpiForSystem() / 96
-    work = info.rcWork
-    return work.left / scale, work.top / scale, work.right / scale, work.bottom / scale
+    def __init__(self):
+        import ctypes.wintypes as w
+        self.w = w
+        self.user32 = ctypes.windll.user32
+
+    def app_id(self) -> None:
+        # This is a separate pythonw process: the tray process's identity is not inherited.
+        winapi.set_app_id(APP_ID)
+
+    def cursor_screen(self) -> tuple[float, float, float, float]:
+        """The work area of the screen the mouse is on, in scaled pixels."""
+        w = self.w
+        point = w.POINT()
+        self.user32.GetCursorPos(ctypes.byref(point))
+        monitor = self.user32.MonitorFromPoint(point, 2)
+
+        class MonitorInfo(ctypes.Structure):
+            _fields_ = [("cbSize", w.DWORD), ("rcMonitor", w.RECT), ("rcWork", w.RECT), ("dwFlags", w.DWORD)]
+
+        info = MonitorInfo()
+        info.cbSize = ctypes.sizeof(info)
+        self.user32.GetMonitorInfoW(monitor, ctypes.byref(info))
+        scale = self.user32.GetDpiForSystem() / 96
+        work = info.rcWork
+        return work.left / scale, work.top / scale, work.right / scale, work.bottom / scale
+
+    def _handle(self, window) -> int:
+        return int(window.native.Handle.ToInt64())
+
+    def scale(self, window) -> float:
+        self.user32.GetDpiForWindow.argtypes = [self.w.HWND]
+        self.user32.GetDpiForWindow.restype = self.w.UINT
+        return (self.user32.GetDpiForWindow(self._handle(window)) or 96) / 96
+
+    def on_ui(self, window, apply) -> None:
+        from System import Action
+
+        window.native.Invoke(Action(apply))
+
+    def minimum(self, window, size: tuple[int, int]) -> None:
+        """pywebview sets the minimum at creation; WinForms can change it when the window's mode changes."""
+        from System.Drawing import Size
+
+        def apply():
+            scale = self.scale(window)
+            window.native.MinimumSize = Size(int(size[0] * scale), int(size[1] * scale))
+
+        self.on_ui(window, apply)
+
+    def topmost(self, window, on_top: bool) -> None:
+        # pywebview's Windows setter assigns Form.TopMost directly. From the command thread that can block
+        # on WinForms while holding Python's GIL, deadlocking the UI after a mouse click. Marshal the setter.
+        self.on_ui(window, lambda: setattr(window, "on_top", on_top))
+
+    def bounds(self, window) -> tuple[tuple[int, int, int, int], bool]:
+        """The window's normal rectangle (logical pixels), and whether it's maximized."""
+        # pywebview resizes through SetWindowPos; WinForms' RestoreBounds stays stale while normal.
+        # Bounds is current in normal state; RestoreBounds is the saved rectangle when minimized/maximized.
+        native = window.native
+        scale = self.scale(window)
+        state = native.WindowState.ToString()
+        rect = native.Bounds if state == "Normal" else native.RestoreBounds
+        return tuple(round(n / scale) for n in (rect.X, rect.Y, rect.Width, rect.Height)), state == "Maximized"
+
+    def minimized(self, window) -> bool:
+        return window.native.WindowState.ToString() == "Minimized"
+
+    def focused(self, window) -> bool:
+        self.user32.GetForegroundWindow.restype = self.w.HWND
+        return self.user32.GetForegroundWindow() == self._handle(window)
+
+    def hide_now(self, window) -> None:
+        # WinForms runs the closing callback on its UI thread; hide there, without waiting on a cross-thread invoke.
+        window.native.Hide()
+
+    def bring_forward(self, window) -> None:
+        pass   # showing the window brings it forward
+
+    def title_bar(self, window, dark: bool) -> None:
+        winapi.dark_title_bar(self._handle(window), dark)
+
+
+class _MacHost:
+    """What the window needs from macOS: AppKit (PyObjC) behind pywebview's Cocoa backend. Sizes are points, the
+    origin the top left of the main screen (as pywebview places windows); AppKit's origin is the bottom left."""
+
+    GUI = "cocoa"
+
+    def app_id(self) -> None:
+        pass   # the app's identity is its bundle
+
+    @staticmethod
+    def _main_height() -> float:
+        from AppKit import NSScreen
+
+        return NSScreen.screens()[0].frame().size.height
+
+    def cursor_screen(self) -> tuple[float, float, float, float]:
+        """The visible area (without the menu bar and the Dock) of the screen the mouse is on."""
+        from AppKit import NSEvent, NSPointInRect, NSScreen
+
+        mouse = NSEvent.mouseLocation()
+        screens = NSScreen.screens()
+        screen = next((s for s in screens if NSPointInRect(mouse, s.frame())), screens[0])
+        area = screen.visibleFrame()
+        top = self._main_height() - (area.origin.y + area.size.height)
+        return area.origin.x, top, area.origin.x + area.size.width, top + area.size.height
+
+    def scale(self, window) -> float:
+        return 1.0   # pywebview works in points on a Mac
+
+    def on_ui(self, window, apply) -> None:
+        from PyObjCTools import AppHelper
+
+        done = threading.Event()
+
+        def run():
+            try:
+                apply()
+            finally:
+                done.set()
+
+        AppHelper.callAfter(run)
+        done.wait(5)
+
+    def minimum(self, window, size: tuple[int, int]) -> None:
+        from Foundation import NSMakeSize
+
+        self.on_ui(window, lambda: window.native.setContentMinSize_(NSMakeSize(*size)))
+
+    def topmost(self, window, on_top: bool) -> None:
+        self.on_ui(window, lambda: setattr(window, "on_top", on_top))
+
+    def bounds(self, window) -> tuple[tuple[int, int, int, int], bool]:
+        native = window.native
+        frame = native.frame()
+        top = self._main_height() - (frame.origin.y + frame.size.height)
+        rect = (round(frame.origin.x), round(top), round(frame.size.width), round(frame.size.height))
+        return rect, bool(native.isZoomed())
+
+    def minimized(self, window) -> bool:
+        return bool(window.native.isMiniaturized())
+
+    def focused(self, window) -> bool:
+        from AppKit import NSApp
+
+        return bool(NSApp.isActive() and window.native.isKeyWindow())
+
+    def hide_now(self, window) -> None:
+        self.on_ui(window, lambda: window.native.orderOut_(None))
+
+    def bring_forward(self, window) -> None:
+        # Opened by the shortcut while another app is in front, the window would come up behind it.
+        from AppKit import NSApp
+
+        def forward():
+            NSApp.activateIgnoringOtherApps_(True)
+            window.native.makeKeyAndOrderFront_(None)
+
+        self.on_ui(window, forward)
+
+    def title_bar(self, window, dark: bool) -> None:
+        from AppKit import NSApp, NSAppearance
+
+        name = "NSAppearanceNameDarkAqua" if dark else "NSAppearanceNameAqua"
+        self.on_ui(window, lambda: NSApp.setAppearance_(NSAppearance.appearanceNamed_(name)))
+
+
+HOST = _MacHost() if sys.platform == "darwin" else _WindowsHost() if sys.platform == "win32" else None
 
 
 class Windows:
     def __init__(self, url: str, token: str):
-        # This is a separate pythonw process: the tray process's identity is not inherited.
-        winapi.set_app_id(APP_ID)
+        HOST.app_id()
         self.url, self.token = url, token
         self.dark = False
         self.mode = "compact"
@@ -115,48 +273,20 @@ class Windows:
 
     # One window, two modes. Routes change within the existing page: its search state stays alive.
 
-    def _scale(self) -> float:
-        user32 = ctypes.windll.user32
-        user32.GetDpiForWindow.argtypes = [w.HWND]
-        user32.GetDpiForWindow.restype = w.UINT
-        return (user32.GetDpiForWindow(int(self.window.native.Handle.ToInt64())) or 96) / 96
-
     def _minimum(self, size: tuple[int, int]) -> None:
-        """pywebview sets the minimum at creation; WinForms can change it when the window's mode changes."""
         if not self.window.events.shown.wait(20):
             raise RuntimeError("the window didn't initialize")
-        from System.Drawing import Size
-
-        def apply():
-            native = self.window.native
-            scale = self._scale()
-            native.MinimumSize = Size(int(size[0] * scale), int(size[1] * scale))
-
-        self._on_ui(apply)
-
-    def _on_ui(self, apply) -> None:
-        from System import Action
-
-        self.window.native.Invoke(Action(apply))
+        HOST.minimum(self.window, size)
 
     def _topmost(self, on_top: bool) -> None:
-        # pywebview's Windows setter assigns Form.TopMost directly. From the command thread that can block
-        # on WinForms while holding Python's GIL, deadlocking the UI after a mouse click. Marshal the setter.
-        self._on_ui(lambda: setattr(self.window, "on_top", on_top))
+        HOST.topmost(self.window, on_top)
 
     def _remember(self) -> None:
         if self.presented:
-            # pywebview resizes through SetWindowPos; WinForms' RestoreBounds stays stale while normal.
-            # Bounds is current in normal state; RestoreBounds is the saved rectangle when minimized/maximized.
-            native = self.window.native
-            scale = self._scale()
-            state = native.WindowState.ToString()
-            rect = native.Bounds if state == "Normal" else native.RestoreBounds
-            self.bounds[self.mode] = tuple(round(n / scale) for n in (rect.X, rect.Y, rect.Width, rect.Height))
-            self.maximized[self.mode] = state == "Maximized"
+            self.bounds[self.mode], self.maximized[self.mode] = HOST.bounds(self.window)
 
     def _place(self, mode: str) -> None:
-        left, top, right, bottom = _cursor_screen()
+        left, top, right, bottom = HOST.cursor_screen()
         default = POPUP_SIZE if mode == "compact" else MAIN_SIZE
         width, height = min(default[0], int(right - left)), min(default[1], int(bottom - top))
         x = int(left + (right - left - width) / 2)
@@ -188,6 +318,7 @@ class Windows:
             if not self.visible:
                 self.window.restore()
             self.window.show()
+            HOST.bring_forward(self.window)
             if (switching or not self.visible) and self.maximized.get(mode):
                 self.window.maximize()
             self.visible = True
@@ -205,12 +336,13 @@ class Windows:
             return self.hide()
         if not self.presented:
             return self.show_popup()
-        if not self.visible or self.window.native.WindowState.ToString() == "Minimized":
+        if not self.visible or HOST.minimized(self.window):
             self.window.restore()
             if self.maximized.get(self.mode):
                 self.window.maximize()
         self._topmost(False)
         self.window.show()
+        HOST.bring_forward(self.window)
         self.visible = True
         self.window.evaluate_js("window.dispatchEvent(new Event('dowse:shown'))")
         self.last_shown = time.monotonic()
@@ -219,9 +351,7 @@ class Windows:
     def focused(self) -> bool:
         if not self.window.events.shown.wait(20):
             return False
-        user32 = ctypes.windll.user32
-        user32.GetForegroundWindow.restype = w.HWND
-        return user32.GetForegroundWindow() == int(self.window.native.Handle.ToInt64())
+        return HOST.focused(self.window)
 
     def hide(self) -> bool:
         with self.lock:
@@ -242,16 +372,15 @@ class Windows:
     def closing(self) -> bool:
         if self.quitting:
             return True
-        # WinForms runs this callback on its UI thread; hide there, without waiting on a cross-thread invoke.
         self._remember()
-        self.window.native.Hide()
+        HOST.hide_now(self.window)
         self.visible = False
         self.last_shown = time.monotonic()
         return False
 
     def title_bar(self) -> None:
         with contextlib.suppress(Exception):
-            winapi.dark_title_bar(int(self.window.native.Handle.ToInt64()), self.dark)
+            HOST.title_bar(self.window, self.dark)
 
     def pick(self, what: str) -> list[str]:
         self.picking = True
@@ -292,7 +421,7 @@ def main() -> None:
         threading.Thread(target=windows.idle, name="idle", daemon=True).start()
         windows.send({"event": "ready"})
 
-    webview.start(started, gui="edgechromium", icon=str(ICON), private_mode=False,
+    webview.start(started, gui=HOST.GUI, icon=str(ICON), private_mode=False,
                   storage_path=str(paths.home() / "WebView"))
 
 

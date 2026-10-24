@@ -49,6 +49,27 @@ class Window:
         self.scripts.append(script)
 
 
+class FakeHost(windows._WindowsHost):
+    """The real Windows side (`windows.HOST`), WinForms faked: one 1920×1080 screen at `dpi` scale, and UI-thread
+    dispatch done at once (or handed to `dispatch`)."""
+
+    def __init__(self):   # (no user32: the fakes stand in for WinForms)
+        self.dpi = 1.0
+        self.dispatch = None
+
+    def cursor_screen(self):
+        return 0, 0, 1920, 1080
+
+    def scale(self, window):
+        return self.dpi
+
+    def on_ui(self, window, apply):
+        (self.dispatch or (lambda run: run()))(apply)
+
+    def title_bar(self, window, dark):
+        pass
+
+
 @pytest.fixture
 def host(monkeypatch):
     created = []
@@ -59,10 +80,8 @@ def host(monkeypatch):
         return window
 
     monkeypatch.setattr(windows.webview, "create_window", create)
-    monkeypatch.setattr(windows, "_cursor_screen", lambda: (0, 0, 1920, 1080))
+    monkeypatch.setattr(windows, "HOST", FakeHost())
     monkeypatch.setattr(windows.Windows, "_minimum", lambda self, size: setattr(self, "minimum", size))
-    monkeypatch.setattr(windows.Windows, "_on_ui", lambda self, apply: apply())
-    monkeypatch.setattr(windows.Windows, "_scale", lambda self: 1)
     monkeypatch.setattr(windows.Windows, "focused", lambda self: False)
     return windows.Windows("http://127.0.0.1:1234/", "test-token"), created
 
@@ -101,13 +120,16 @@ def test_window_process_sets_its_own_identity_before_creating_the_form(host, mon
 
 
 def test_production_webview_starts_with_the_packaged_icon(monkeypatch):
+    if windows.HOST is None:
+        pytest.skip("no window host on this system yet (Windows and macOS)")
     options = {}
     monkeypatch.setattr(windows.sys, "argv", ["windows", "http://127.0.0.1:1234/", "test-token"])
     monkeypatch.setattr(windows, "Windows", lambda *args: SimpleNamespace())
     monkeypatch.setattr(windows.webview, "start", lambda callback, **kwargs: options.update(kwargs))
     windows.main()
     assert options["icon"] == str(windows.ICON)
-    assert options["gui"] == "edgechromium"
+    assert options["gui"] == windows.HOST.GUI   # WebView2 on Windows, WKWebView on a Mac
+    assert windows._WindowsHost.GUI == "edgechromium" and windows._MacHost.GUI == "cocoa"
 
 
 def test_explicit_popup_dismissal_cannot_hide_a_workspace_or_file_dialog(host):
@@ -150,7 +172,7 @@ def test_workspace_maximization_survives_a_round_trip_to_quick_search(host):
 def test_saved_geometry_uses_the_window_dpi(host, monkeypatch):
     app, _ = host
     app.show_popup()
-    monkeypatch.setattr(app, "_scale", lambda: 1.5)
+    windows.HOST.dpi = 1.5
     app.window.resize(1200, 780)
     app.window.move(180, 120)
     app._remember()
@@ -170,7 +192,7 @@ def test_normal_geometry_ignores_stale_winforms_restore_bounds(host):
 def test_topmost_changes_are_dispatched_to_the_ui_thread(host, monkeypatch):
     app, _ = host
     pending = []
-    monkeypatch.setattr(app, "_on_ui", pending.append)
+    windows.HOST.dispatch = pending.append
     app._topmost(True)
     assert not app.window.on_top   # a background command must not touch WinForms before UI dispatch
     assert len(pending) == 1

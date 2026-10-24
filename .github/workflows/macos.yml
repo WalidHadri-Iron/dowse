@@ -81,3 +81,15 @@ jobs:
           uv run dowse setup --backend metal
           "$(uv run python -c 'from dowse import runtime; print(runtime.executable("metal"))')" --list-devices || true
           DOWSE_BACKEND=metal uv run pytest -q tests/test_reference.py
+
+      - name: The Mac app, started as a person starts it
+        run: uv run python scripts/mac_smoke.py "$RUNNER_TEMP/mac-app"
+
+      - name: Screenshots and logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mac-app
+          path: |
+            ${{ runner.temp }}/mac-app
+            .dowse-home/Logs

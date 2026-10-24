@@ -1,5 +1,6 @@
-"""What the app asks of Windows itself: opening a file where it matched, showing it in Explorer, putting it on the
-clipboard (the file, as Explorer copies it, or its path), and reading the user's theme and accent color."""
+"""What the app asks of the system: opening a file where it matched, showing it in Explorer (Finder), putting it on
+the clipboard (the file, as Explorer copies it, or its path), and reading the user's theme and accent color. On a Mac
+each is `macapi`'s."""
 
 import ctypes
 import os
@@ -12,6 +13,7 @@ from . import winapi
 from ..rules import Kind
 
 WINDOWS = sys.platform == "win32"
+MAC = sys.platform == "darwin"
 
 
 # Opening
@@ -45,6 +47,9 @@ def open_command(path: str, kind: Kind, loc: float | None, opener: str | None) -
 
 
 def open_file(path: str, kind: Kind, loc: float | None = None) -> None:
+    if MAC:
+        from . import macapi
+        return macapi.open_file(path, kind.value, loc)
     command = open_command(path, kind, loc, winapi.default_app(PurePath(path).suffix))
     if command:
         subprocess.Popen(command, close_fds=True)
@@ -54,6 +59,9 @@ def open_file(path: str, kind: Kind, loc: float | None = None) -> None:
 
 def reveal(path: str) -> None:
     """Explorer, with the file selected."""
+    if MAC:
+        from . import macapi
+        return macapi.reveal(path)
     subprocess.Popen(f'explorer.exe /select,"{os.path.normpath(path)}"')
 
 
@@ -88,11 +96,17 @@ def _set_clipboard(fmt: int, data: bytes) -> None:
 
 
 def copy_path(path: str) -> None:
+    if MAC:
+        from . import macapi
+        return macapi.copy_path(path)
     _set_clipboard(CF_UNICODETEXT, (path + "\0").encode("utf-16-le"))
 
 
 def copy_file(path: str) -> None:
     """The file itself, as Explorer's Copy puts it: paste it into a folder, a chat, an email."""
+    if MAC:
+        from . import macapi
+        return macapi.copy_file(path)
     files = (os.path.normpath(path) + "\0\0").encode("utf-16-le")
     header = (20).to_bytes(4, "little") + bytes(8) + bytes(4) + (1).to_bytes(4, "little")   # DROPFILES, wide names
     _set_clipboard(CF_HDROP, header + files)
@@ -101,7 +115,10 @@ def copy_file(path: str) -> None:
 # The user's look
 
 def theme() -> dict:
-    """{"dark": bool, "accent": "#rrggbb"}: Windows' app theme and accent color."""
+    """{"dark": bool, "accent": "#rrggbb"}: Windows' app theme and accent color (a Mac's appearance and accent)."""
+    if MAC:
+        from . import macapi
+        return macapi.theme()
     dark, accent = False, "#0067c0"
     if WINDOWS:
         import winreg

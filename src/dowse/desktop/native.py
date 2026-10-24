@@ -1,15 +1,17 @@
-"""The app's presence in Windows: the tray icon, the global shortcut, and its one window.
+"""The app's presence on the desktop: the tray icon (a Mac's menu bar), the global shortcut, and its one window.
 
 The window lives in a process of its own (`windows`), started on demand and gone after ten minutes hidden:
 WebView2 holds ~240 MB for as long as a window exists, and Dowse at rest is the tray icon. That process
 is tied to this one (a kill-on-close job), so it never outlives the app.
 
 - The shortcut is registered on a thread of its own (RegisterHotKey), which also re-registers it when it changes.
+  On a Mac it's a Carbon hotkey (RegisterEventHotKey: no Accessibility permission needed), on the main run loop.
 - The tray menu shows how indexing is going and leads everywhere; left-click opens search.
+- On a Mac, AppKit must own the main thread: the menu-bar icon runs there, and the app is an "accessory" (no Dock
+  icon; its window process has its own).
 """
 
 import ctypes
-import ctypes.wintypes as w
 import itertools
 import json
 import logging
@@ -39,6 +41,7 @@ class Hotkey:
         threading.Thread(target=self._run, name="hotkey", daemon=True).start()
 
     def _run(self) -> None:
+        import ctypes.wintypes as w
         user32, kernel32 = ctypes.windll.user32, ctypes.windll.kernel32
         self._thread_id = kernel32.GetCurrentThreadId()
         self._ok = self._register(self.text)
@@ -69,6 +72,91 @@ class Hotkey:
         self._result.clear()
         ctypes.windll.user32.PostThreadMessageW(self._thread_id, WM_APP + 1, 0, 0)
         self._result.wait(2)
+        return self._ok
+
+
+class MacHotkey:
+    """The global shortcut on a Mac: a Carbon hotkey on the application's event target, registered and changed on the
+    main run loop (where Carbon delivers it). The same contract as `Hotkey`."""
+
+    SIGNATURE = 0x44575345   # 'DWSE'
+    _handler = None          # one handler for the app: kept alive here, as Carbon calls it for the app's life
+
+    def __init__(self, text: str, pressed):
+        from . import macapi
+
+        self.macapi, self.text, self.pressed = macapi, text, pressed
+        self._ref = ctypes.c_void_p()
+        self._ok = False
+        self._result = threading.Event()
+        self._carbon = ctypes.CDLL("/System/Library/Frameworks/Carbon.framework/Carbon")
+        self._on_main(lambda: self._first(text))
+
+    def _on_main(self, work) -> None:
+        from PyObjCTools import AppHelper
+
+        self._result.clear()
+        AppHelper.callAfter(work)
+
+    class _ID(ctypes.Structure):
+        _fields_ = [("signature", ctypes.c_uint32), ("id", ctypes.c_uint32)]
+
+    class _Spec(ctypes.Structure):
+        _fields_ = [("eventClass", ctypes.c_uint32), ("eventKind", ctypes.c_uint32)]
+
+    def _first(self, text: str) -> None:
+        carbon = self._carbon
+        handler_type = ctypes.CFUNCTYPE(ctypes.c_int32, ctypes.c_void_p, ctypes.c_void_p, ctypes.c_void_p)
+        carbon.GetApplicationEventTarget.restype = ctypes.c_void_p
+        carbon.InstallEventHandler.argtypes = [ctypes.c_void_p, handler_type, ctypes.c_uint32,
+                                               ctypes.POINTER(self._Spec), ctypes.c_void_p,
+                                               ctypes.POINTER(ctypes.c_void_p)]
+        carbon.RegisterEventHotKey.argtypes = [ctypes.c_uint32, ctypes.c_uint32, self._ID, ctypes.c_void_p,
+                                               ctypes.c_uint32, ctypes.POINTER(ctypes.c_void_p)]
+        carbon.UnregisterEventHotKey.argtypes = [ctypes.c_void_p]
+
+        def on_press(_call, _event, _data):
+            threading.Thread(target=self.pressed, daemon=True).start()   # never hold up the main thread
+            return 0
+
+        MacHotkey._handler = handler_type(on_press)
+        spec = self._Spec(0x6B657962, 5)   # kEventClassKeyboard ('keyb'), kEventHotKeyPressed
+        carbon.InstallEventHandler(carbon.GetApplicationEventTarget(), MacHotkey._handler, 1, ctypes.byref(spec),
+                                   None, None)
+        self._ok = self._register(text)
+        self._result.set()
+
+    def _register(self, text: str) -> bool:
+        try:
+            modifiers, key = self.macapi.parse_hotkey(text)
+        except ValueError:
+            return False
+        ref = ctypes.c_void_p()
+        status = self._carbon.RegisterEventHotKey(key, modifiers, self._ID(self.SIGNATURE, 1),
+                                                  self._carbon.GetApplicationEventTarget(), 0, ctypes.byref(ref))
+        if status != 0:   # eventHotKeyExistsErr: another app has it
+            return False
+        self._ref = ref
+        return True
+
+    def registered(self) -> bool:
+        self._result.wait(5)
+        return self._ok
+
+    def change(self, text: str) -> bool:
+        def swap():
+            if self._ref:
+                self._carbon.UnregisterEventHotKey(self._ref)
+                self._ref = ctypes.c_void_p()
+            if self._register(text):
+                self.text, self._ok = text, True
+            else:
+                self._ok = False
+                self._register(self.text)   # keep the old one
+            self._result.set()
+
+        self._on_main(swap)
+        self._result.wait(5)
         return self._ok
 
 
@@ -165,6 +253,8 @@ class Native:
 
     def run(self, show: str | None) -> None:
         """Until Quit (on the main thread)."""
+        if sys.platform == "darwin":
+            return self._run_mac(show)
         self.hotkey = Hotkey(self.app.settings["hotkey"], self.toggle_popup)
         self._tray()
         if not self.hotkey.registered():
@@ -176,7 +266,32 @@ class Native:
             self.show_main(show)
         self._quit.wait()
 
-    def _tray(self) -> None:
+    def _run_mac(self, show: str | None) -> None:
+        """AppKit owns the main thread: the menu-bar icon's loop runs here until Quit, and what needs it running
+        (the accessory policy, the shortcut on the main run loop) is done once the icon is up."""
+        def started(icon) -> None:
+            icon.visible = True
+            from PyObjCTools import AppHelper
+
+            def accessory():
+                from AppKit import NSApp
+                NSApp.setActivationPolicy_(1)   # NSApplicationActivationPolicyAccessory: no Dock icon
+
+            AppHelper.callAfter(accessory)
+            self.hotkey = MacHotkey(self.app.settings["hotkey"], self.toggle_popup)
+            if not self.hotkey.registered():
+                self.notify("Dowse", f"{self.app.settings['hotkey']} is taken by another app. Search from the menu "
+                                     "bar icon, or choose another shortcut in Settings.")
+            if show == "popup":
+                self.show_popup()
+            elif show:
+                self.show_main(show)
+
+        self._tray(start=False)
+        self.tray.run(setup=started)
+        self._quit.set()
+
+    def _tray(self, start: bool = True) -> None:
         import pystray
         from PIL import Image
 
@@ -194,7 +309,8 @@ class Native:
             pystray.MenuItem("Quit Dowse", lambda: self.quit()),
         )
         self.tray = pystray.Icon("Dowse", Image.open(ICON), "Dowse", menu)
-        threading.Thread(target=self.tray.run, name="tray", daemon=True).start()
+        if start:
+            threading.Thread(target=self.tray.run, name="tray", daemon=True).start()
 
     # Windows
 
@@ -238,6 +354,10 @@ class Native:
             self.tray.update_menu()
 
     def notify(self, title: str, message: str) -> None:
+        if sys.platform == "darwin":
+            from . import macapi
+            macapi.notify(title, message)
+            return
         if self.tray is not None:
             try:
                 self.tray.notify(message, title)
