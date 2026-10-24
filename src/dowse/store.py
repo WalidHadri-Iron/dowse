@@ -33,6 +33,7 @@ class Segment(StrEnum):
     PAGE_IMAGE = "page_image"  # a PDF page rendered as a picture (scans, slides)
     CHUNK = "chunk"            # a passage of a document
     AUDIO = "audio"            # a window of sound (a recording, or a video's soundtrack)
+    TAG = "tag"                # ID3v2/FLAC music metadata (keyword search only)
     FRAME = "frame"            # a video frame
 
 

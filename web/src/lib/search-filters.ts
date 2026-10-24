@@ -32,6 +32,7 @@ export function evidenceLines(evidence: import("./api").Evidence[]): string[] {
       case "date": return `${e.dateSource === "taken" ? "Photo taken" : "File modified"} on ${e.date} · within date filter`;
       case "ocr": return `Words read in image: ${words}${where}`;
       case "text": return `Text contains ${words}${where}`;
+      case "tag": return `Music tags contain ${words}${where}`;
       case "semantic": return `${e.modality === "visual" ? "Visual similarity" : e.modality === "audio" ? "Audio similarity" : "Similar meaning"}${where} · not an exact word match`;
     }
   });

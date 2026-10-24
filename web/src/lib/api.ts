@@ -24,7 +24,7 @@ export interface SearchFolder {
   active: boolean;
 }
 export interface Evidence {
-  source: "filename" | "folder" | "title" | "text" | "ocr" | "semantic" | "date";
+  source: "filename" | "folder" | "title" | "text" | "tag" | "ocr" | "semantic" | "date";
   words: string[];
   place?: string | null;
   loc?: number | null;

@@ -12,6 +12,7 @@ dependencies = [
     "pypdfium2>=4.30",
     "httpx>=0.28",
     "av>=14.0",          # FFmpeg (bundled): audio and video
+    "mutagen>=1.47",     # bounded ID3v2 music tags
     "pywebview>=5.4",            # the app's windows: Windows' own Edge WebView2, no browser bundled
     "pystray>=0.19",             # the tray icon
     # Windows' own OCR (Windows.Media.Ocr): offline, fast, the languages installed in Windows.
