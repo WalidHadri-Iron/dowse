@@ -105,3 +105,75 @@ jobs:
           path: |
             ${{ runner.temp }}/mac-app
             .dowse-home/Logs
+
+  # Dowse.app and its disk image (scripts/build_mac_app.py), installed from the image as a person installs it, set up
+  # with its own command line, and started as Finder starts it. Signed ad hoc until there's a Developer ID: then the
+  # DOWSE_MAC_IDENTITY and DOWSE_NOTARY_PROFILE the builder reads (secrets, a keychain imported first) sign and notarize.
+  app:
+    if: github.repository == 'WalidHadri-Iron/dowse'
+    needs: test
+    runs-on: macos-latest
+    timeout-minutes: 60
+    env:
+      DOWSE_HOME: ${{ github.workspace }}/.dowse-home
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: "3.12"
+          enable-cache: true
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - name: The interface
+        working-directory: web
+        run: |
+          npm ci
+          npm run build
+
+      - name: Cache the app's downloads (its Python) and the model (865 MB)
+        uses: actions/cache@v4
+        with:
+          path: |
+            build/cache
+            .dowse-home/Models
+          key: dowse-mac-app-${{ hashFiles('scripts/build_mac_app.py', 'src/dowse/modelfiles.py') }}
+
+      - name: Dowse.app and its disk image
+        run: |
+          uv sync
+          uv run python scripts/build_mac_app.py
+          du -sh dist/Dowse.app dist/*.dmg
+
+      - name: Installed from the disk image
+        run: |
+          mount="$(mktemp -d)"
+          hdiutil attach dist/Dowse-*.dmg -nobrowse -readonly -mountpoint "$mount"
+          mkdir -p "$HOME/Applications"
+          ditto "$mount/Dowse.app" "$HOME/Applications/Dowse.app"
+          hdiutil detach "$mount"
+          codesign --verify --deep --strict --verbose=2 "$HOME/Applications/Dowse.app"
+          "$HOME/Applications/Dowse.app/Contents/MacOS/Dowse" -m dowse.cli setup --backend metal
+
+      - name: The installed app, started as Finder starts it
+        run: uv run python scripts/mac_smoke.py "$RUNNER_TEMP/mac-app" --app "$HOME/Applications/Dowse.app"
+
+      - name: Screenshots and logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mac-installed-app
+          path: |
+            ${{ runner.temp }}/mac-app
+            .dowse-home/Logs
+
+      - name: Disk image
+        uses: actions/upload-artifact@v4
+        with:
+          name: Dowse-mac
+          path: dist/*.dmg

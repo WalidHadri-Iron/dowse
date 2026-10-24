@@ -12,7 +12,7 @@ Dependencies are managed with [uv](https://docs.astral.sh/uv/); everything runs 
 | `web/` | the interface: Svelte 5, TypeScript, three.js |
 | `tests/` | engine and app tests; `tests/reference/` holds the reference vectors every runtime must reproduce |
 | `evals/` | the ranking evaluation sets, run on the testbed (`scripts/make_testbed.py`, `scripts/hard_testbed.py`) |
-| `packaging/`, `scripts/build_installer.py` | the Windows installer |
+| `packaging/`, `scripts/build_installer.py`, `scripts/build_mac_app.py` | the Windows installer; Dowse.app and its disk image (`packaging/macos/`) |
 
 ## The interface
 
@@ -52,3 +52,9 @@ Add `--backend cpu` to measure the processor alone. The README's numbers are in 
 
 `uv run python scripts/build_installer.py` builds `dist/Dowse-Setup-<version>.exe`: Python's embeddable package, Dowse
 and its locked dependencies, and Inno Setup (`packaging/dowse.iss`), fetched at pinned versions and checked.
+
+On a Mac (Apple Silicon, with Xcode's command line tools), `uv run python scripts/build_mac_app.py` builds
+`dist/Dowse.app` and `dist/Dowse-<version>.dmg`: a relocatable Python (python-build-standalone) with Dowse and its
+locked dependencies inside the app, and a small program (`packaging/macos/launcher.c`) that embeds it, so macOS shows
+the app as Dowse. It's signed ad hoc unless `DOWSE_MAC_IDENTITY` names a Developer ID, and notarized when
+`DOWSE_NOTARY_PROFILE` names saved notary credentials (see the script's docstring).

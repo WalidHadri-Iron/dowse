@@ -3,9 +3,13 @@ reference inputs: a photo, a screenshot, speech), reads it, and answers a search
 opens Quick search and then the Library in its window (screenshots of each, with `screencapture`), and `--quit` ends
 it with every process it started. Fails if the app doesn't start, find the photo, logs an error, or doesn't quit.
 
-    DOWSE_HOME=<a set-up home> uv run python scripts/mac_smoke.py <out dir>
+    DOWSE_HOME=<a set-up home> uv run python scripts/mac_smoke.py <out dir> [--app <Dowse.app>]
+
+With --app, the app is that Dowse.app (built by scripts/build_mac_app.py, installed), started by its own program, as
+Finder starts it; its processes must be its own (named Dowse, not Python).
 """
 
+import argparse
 import json
 import os
 import subprocess
@@ -21,8 +25,11 @@ FOLDER = Path(__file__).resolve().parents[1] / "tests" / "reference"
 QUERY, EXPECTED = "a lake between the mountains", "landscape.jpg"
 
 
+PROGRAM = [sys.executable, "-m", "dowse.desktop.launch"]
+
+
 def launch(*arguments: str, wait: bool = True) -> subprocess.Popen:
-    process = subprocess.Popen([sys.executable, "-m", "dowse.desktop.launch", *arguments])
+    process = subprocess.Popen([*PROGRAM, *arguments])
     if wait:
         process.wait(60)
     return process
@@ -61,8 +68,18 @@ def shoot(out: Path, name: str) -> None:
     print(f"{name}: {picture if picture.exists() else 'no screenshot (screen recording not allowed here)'}")
 
 
+def program_of(pid: int) -> str:
+    return subprocess.run(["ps", "-o", "comm=", "-p", str(pid)], capture_output=True, text=True).stdout.strip()
+
+
 def main() -> None:
-    out = Path(sys.argv[1])
+    parser = argparse.ArgumentParser()
+    parser.add_argument("out")
+    parser.add_argument("--app", help="an installed Dowse.app")
+    args = parser.parse_args()
+    out = Path(args.out)
+    if args.app:
+        PROGRAM[:] = [str(Path(args.app) / "Contents" / "MacOS" / "Dowse")]
     out.mkdir(parents=True, exist_ok=True)
     print("home:", paths.home())
     chosen = settings.load()
@@ -91,6 +108,12 @@ def main() -> None:
     launch("--library")                                             # the Library, in the same window
     time.sleep(6)
     shoot(out, "library")
+    if args.app:   # the app and its window: Dowse.app's own program (the menu reads Dowse), not a Python
+        window = subprocess.run(["pgrep", "-f", "dowse.desktop.windows"], capture_output=True, text=True).stdout.split()
+        names = [program_of(state["pid"])] + [program_of(int(pid)) for pid in window]
+        print("programs:", names)
+        if len(names) < 2 or not all(n.endswith("/Dowse.app/Contents/MacOS/Dowse") for n in names):
+            raise SystemExit("the app's processes aren't Dowse.app's own program")
     quitting = launch("--quit", wait=False)
     code = quitting.wait(60)
     app.wait(30)

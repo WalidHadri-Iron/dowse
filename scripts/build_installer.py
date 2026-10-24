@@ -15,19 +15,16 @@ Setup if it isn't installed) are cached in build/cache; Inno Setup, if needed, i
 """
 
 import argparse
-import hashlib
 import os
 import shutil
 import subprocess
 import sys
-import tomllib
 import zipfile
 from pathlib import Path
 
-import httpx
-
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import exe_resources  # noqa: E402
+from buildtools import download, say, uv, version  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[1]
 BUILD = ROOT / "build" / "installer"
@@ -43,43 +40,6 @@ WEBVIEW2_URL = "https://go.microsoft.com/fwlink/p/?LinkId=2124703"   # the Everg
 INNO_URL = "https://github.com/jrsoftware/issrc/releases/download/is-6_7_3/innosetup-6.7.3.exe"
 INNO_SHA256 = "9c73c3bae7ed48d44112a0f48e66742c00090bdb5bef71d9d3c056c66e97b732"
 REDIST = ("msvcp140.dll", "vcruntime140.dll", "vcruntime140_1.dll")
-
-
-def say(text: str) -> None:
-    print(text, flush=True)
-
-
-def download(url: str, target: Path, sha256: str | None = None) -> Path:
-    if not target.exists():
-        say(f"  downloading {url}")
-        target.parent.mkdir(parents=True, exist_ok=True)
-        part = target.with_name(target.name + ".part")
-        with httpx.stream("GET", url, follow_redirects=True, timeout=120) as response:
-            response.raise_for_status()
-            with part.open("wb") as out:
-                for chunk in response.iter_bytes(1 << 20):
-                    out.write(chunk)
-        part.replace(target)
-    if sha256:
-        actual = hashlib.sha256(target.read_bytes()).hexdigest()
-        if actual != sha256:
-            target.unlink()
-            raise SystemExit(f"{target.name}: sha256 {actual} isn't the pinned {sha256}")
-    return target
-
-
-def version() -> str:
-    project = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))["project"]["version"]
-    package = (ROOT / "src" / "dowse" / "__init__.py").read_text(encoding="utf-8")
-    if f'__version__ = "{project}"' not in package:
-        raise SystemExit(f"pyproject.toml says {project}, but dowse.__version__ differs: make them agree")
-    return project
-
-
-def uv(*args: str) -> None:
-    command = [os.environ.get("UV", "uv"), *args]
-    say("  " + " ".join(command))
-    subprocess.run(command, cwd=ROOT, check=True)
 
 
 def stage(app_version: str) -> None:

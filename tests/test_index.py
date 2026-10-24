@@ -10,6 +10,7 @@ import numpy as np
 import pytest
 from PIL import Image
 
+from dowse import searcher
 from dowse.embedder import DIM, target_size
 from dowse.indexer import Indexer
 from dowse.rules import Kind
@@ -121,6 +122,29 @@ def test_meaning_scale():
     modality = np.array(["text"] * 500 + ["image"] * 500)
     z = meaning(scores, modality)
     assert abs(z[:500].mean() - z[500:].mean()) < 0.05   # put on one scale
+
+
+def test_a_small_index_can_hold_a_match():
+    image = np.array(["image"] * 4)
+    # Four files, one of them the answer: on one scale for all four it could reach 1.5 at most, under the gate
+    z = meaning(np.array([0.45, 0.25, 0.27, 0.22], np.float32), image)
+    assert z[0] > Ranking().z_gate and z[1:].max() < 0
+    # Four files, none of them it: something is always nearest, but nothing stands out
+    assert meaning(np.array([0.30, 0.25, 0.27, 0.22], np.float32), image).max() < Ranking().z_gate
+    assert not meaning(np.array([0.5, 0.2], np.float32), image[:2]).any()   # two: no spread to measure
+    # Toward `SMALL` the two scales meet
+    rng = np.random.default_rng(1)
+    scores = rng.normal(0, 0.05, searcher.SMALL - 1)
+    scores[0] += 0.25
+    one_scale = (scores - scores.mean()) / scores.std()
+    assert meaning(scores, np.array(["text"] * len(scores)))[0] == pytest.approx(one_scale[0], rel=0.05)
+
+
+def test_student_t_read_as_z():
+    for t, df, p in [(2.920, 2, 0.05), (12.706, 1, 0.025), (2.042, 30, 0.025), (31.6, 2, 0.0005)]:
+        assert searcher._t_as_z(t, df) == pytest.approx(-searcher._NORMAL.inv_cdf(p), abs=2e-3)
+    assert searcher._t_as_z(-2.920, 2) == pytest.approx(-1.645, abs=2e-3)
+    assert searcher._t_as_z(1e6, 3) > 8   # far out, without overflow
 
 
 def test_lookup():

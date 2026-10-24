@@ -59,6 +59,13 @@ The testbed's person renamed to Alex (2026-10-16: a letter's signature, a greeti
 again: R@1 0.941 → 0.934, MRR 0.964 → 0.961, the rest the same. The one change is "rendez-vous chez l'opticien":
 optician.eml now second behind note-fr.txt, as it already was without the corrections, a near tie its header tipped.
 
+Small indexes (2026-10-24, `scripts/small_index_experiment.py`: each query's answer among k − 1 files drawn from the
+testbed, 5 draws). On one scale for the whole index, n vectors can't stand out further than (n − 1)/√n, so an index of
+four photos never held a match ("a lake between the mountains": nothing, among four files). Measured against the
+others instead, through Student's t (`apart`, under `SMALL` vectors), found and said to be found, one scale → now:
+2 files 0.457 → 0.530, 3 files 0.484 → 0.571, 4 files 0.562 → 0.825, 6 files 0.847 → 0.909, 10 files 0.920 → 0.936;
+false alarms 0 of 40 either way; from 20 files (~250 vectors) the same. The testbed (812 vectors) is unchanged.
+
 More like this (`like`): a file, or a place in it, as the query. Its vectors are already here, so nothing is read or
 embedded. A file with several (a PDF's pages, a video's frames and sound) is searched with each of them, up to
 `LIKE_VECTORS`, and every vector keeps the best z any of them gave it: a file is like another when some part of one
@@ -206,9 +213,13 @@ def _trigrams(word: str) -> set[str]:
 _taken = dates.taken
 
 
+SMALL = 200   # under this many vectors, the scale itself is uncertain (`apart`)
+
+
 def meaning(scores: np.ndarray, modality: np.ndarray) -> np.ndarray:
     """Each vector's score minus its modality's average (text, image and audio vectors sit at different levels for
-    the same query), in standard deviations of all of them together. Groups under 20 vectors take the overall mean."""
+    the same query), in standard deviations of all of them together. Groups under 20 vectors take the overall mean.
+    A small index (under `SMALL` vectors) measures each against the others instead (`apart`)."""
     if not len(scores):
         return np.zeros(0)
     centered = scores.astype(np.float64)
@@ -216,8 +227,59 @@ def meaning(scores: np.ndarray, modality: np.ndarray) -> np.ndarray:
     for value in np.unique(modality):
         rows = modality == value
         centered[rows] -= centered[rows].mean() if rows.sum() >= 20 else overall
+    if len(centered) < SMALL:
+        return apart(centered)
     deviation = max(float(centered.std()), 0.02)
     return (centered - centered.mean()) / deviation
+
+
+def apart(values: np.ndarray) -> np.ndarray:
+    """How far each value stands from the others, on the scale of one draw from many. In standard deviations of all
+    of them, n values can't stand out further than (n − 1)/√n (1.5 for four), so a folder of five photos could never
+    hold a match. Each is measured against the n − 1 others instead, as a new draw from them (its distance from their
+    mean in their deviation, √(1 + 1/(n − 1)) wider for their mean's own error), and read through Student's t with
+    n − 2 degrees of freedom as the z with the same chance: few values give an uncertain deviation, so standing out
+    among them takes more. Under three values there's no deviation to measure: nothing stands out."""
+    n = len(values)
+    if n < 3:
+        return np.zeros(n)
+    others = (values.sum() - values) / (n - 1)
+    spread = ((values ** 2).sum() - values ** 2 - (n - 1) * others ** 2) / (n - 2)   # the others' sample variance
+    deviation = np.maximum(np.sqrt(np.maximum(spread, 0)), 0.02) * math.sqrt(1 + 1 / (n - 1))
+    return np.array([_t_as_z(float(t), n - 2) for t in (values - others) / deviation])
+
+
+def _t_as_z(t: float, df: int) -> float:
+    """The z with the same one-sided chance as Student's t with `df` degrees of freedom."""
+    if t == 0:
+        return 0.0
+    tail = 0.5 * _beta_regularized(df / (df + t * t), df / 2, 0.5)   # P(T ≥ |t|)
+    z = -_NORMAL.inv_cdf(min(max(tail, 1e-300), 0.5))
+    return z if t > 0 else -z
+
+
+def _beta_regularized(x: float, a: float, b: float) -> float:
+    """I_x(a, b), the regularized incomplete beta function (its continued fraction, by Lentz's method)."""
+    if x <= 0 or x >= 1:
+        return 0.0 if x <= 0 else 1.0
+    if x > (a + 1) / (a + b + 2):   # the fraction converges on the other side: I_x(a, b) = 1 − I_(1−x)(b, a)
+        return 1 - _beta_regularized(1 - x, b, a)
+    front = math.exp(math.lgamma(a + b) - math.lgamma(a) - math.lgamma(b) + a * math.log(x) + b * math.log1p(-x))
+    tiny = 1e-300
+    c, d = 1.0, 1 - (a + b) * x / (a + 1)
+    d = 1 / (d if abs(d) > tiny else tiny)
+    fraction = d
+    for m in range(1, 300):
+        for step in (m * (b - m) * x / ((a + 2 * m - 1) * (a + 2 * m)),
+                     -(a + m) * (a + b + m) * x / ((a + 2 * m) * (a + 2 * m + 1))):
+            d = 1 + step * d
+            d = 1 / (d if abs(d) > tiny else tiny)
+            c = 1 + step / c
+            c = c if abs(c) > tiny else tiny
+            fraction *= d * c
+        if abs(d * c - 1) < 1e-14:
+            break
+    return front * fraction / a
 
 
 def sidak(z: float, n: float) -> float:
