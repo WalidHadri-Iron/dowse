@@ -154,7 +154,7 @@ def test_sync_follows_the_selection(tmp_path):
     assert names() == ["a.png", "b.png"] and (summary.added, summary.removed) == (1, 1)
 
 
-@pytest.mark.skipif(sys.platform != "win32", reason="watching folders needs Windows")
+@pytest.mark.skipif(sys.platform not in ("win32", "darwin", "linux"), reason="no folder watcher on this system")
 def test_the_service_applies_a_new_selection_live(tmp_path):
     home = tmp_path / "home"
     photo(home / "a.png", 1)

@@ -28,6 +28,7 @@ download its model and runtime, once.
 |---|---|
 | **Describe it** | Alt+Shift+Space from any app, type what you remember. Results come as you type. |
 | **Goes to the spot** | A PDF opens at the page with your words marked; a recording or video plays from the moment. |
+| **Music tags** | Find songs by embedded artist, title, album or genre—even when their filenames say nothing. |
 | **Every kind of file** | Photos (HEIC too), screenshots (with their words, via Windows OCR), PDFs, Word/PowerPoint/Excel and OpenDocument, notes, e-mails, e-books, code, recordings and videos. |
 | **Any language** | Search in one language, find files written in another. |
 | **More like this** | Start from a file: *Similar* on any result, or drop a photo on the window. |

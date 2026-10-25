@@ -1,20 +1,23 @@
-"""The Mac app, started as a person starts it, on a CI Mac: it comes up in the menu bar with a folder chosen (the
-reference inputs: a photo, a screenshot, speech), reads it, and answers a search through its own API; a second launch
-opens Quick search and then the Library in its window (screenshots of each, with `screencapture`), and `--quit` ends
-it with every process it started. Fails if the app doesn't start, find the photo, logs an error, or doesn't quit.
+"""The desktop app, started as a person starts it, on a CI Mac or Linux machine: it comes up in the menu bar (the
+tray) with a folder chosen (the reference inputs: a photo, a screenshot, speech), reads it, and answers a search
+through its own API; a second launch opens Quick search and then the Library in its window (screenshots of each:
+`screencapture` on a Mac, ImageMagick's `import` on Linux's X display), and `--quit` ends it with every process it
+started. Fails if the app doesn't start, find the photo, logs an error, or doesn't quit.
 
-    DOWSE_HOME=<a set-up home> uv run python scripts/mac_smoke.py <out dir> [--app <Dowse.app>]
+    DOWSE_HOME=<a set-up home> uv run python scripts/app_smoke.py <out dir> [--app <Dowse.app>] [--first-run]
 
 With --app, the app is that Dowse.app (built by scripts/build_mac_app.py, installed), started by its own program, as
 Finder starts it; its processes must be its own (named Dowse, not Python). With --first-run, the home is new (only its
 Models, to save the download): the app is set up through its own welcome (the runtime downloaded, the folder chosen,
-opening at login asked for, whose LaunchAgent must start this app; it's removed after).
+opening at login asked for, whose LaunchAgent (Linux: autostart entry) must start this app; it's removed after).
 """
 
 import argparse
 import json
 import os
 import plistlib
+import shlex
+import shutil
 import subprocess
 import sys
 import time
@@ -67,8 +70,24 @@ def api(port: int, cookie: str, method: str, path: str, body: dict | None = None
 
 def shoot(out: Path, name: str) -> None:
     picture = out / f"{name}.png"
-    subprocess.run(["screencapture", "-x", str(picture)], check=False, timeout=30)
-    print(f"{name}: {picture if picture.exists() else 'no screenshot (screen recording not allowed here)'}")
+    if sys.platform == "darwin":
+        subprocess.run(["screencapture", "-x", str(picture)], check=False, timeout=30)
+    elif os.environ.get("DISPLAY") and shutil.which("import"):
+        subprocess.run(["import", "-window", "root", str(picture)], check=False, timeout=30)
+    print(f"{name}: {picture if picture.exists() else 'no screenshot (no screen to capture here)'}")
+
+
+def login_entry() -> list[str]:
+    """What opening at login runs (and the entry removed): a Mac's LaunchAgent, Linux's XDG autostart file."""
+    if sys.platform == "darwin":
+        agent = Path.home() / "Library" / "LaunchAgents" / "app.dowse.login.plist"
+        command = plistlib.loads(agent.read_bytes())["ProgramArguments"]
+    else:
+        agent = Path(os.environ.get("XDG_CONFIG_HOME") or Path.home() / ".config") / "autostart" / "dowse.desktop"
+        line = next(line for line in agent.read_text().splitlines() if line.startswith("Exec="))
+        command = shlex.split(line[len("Exec="):])
+    agent.unlink()
+    return command
 
 
 def welcome(port: int, cookie: str) -> None:
@@ -92,10 +111,10 @@ def welcome(port: int, cookie: str) -> None:
                 raise
             return False
     until(finished, 600, "setup through the welcome")
-    agent = Path.home() / "Library" / "LaunchAgents" / "app.dowse.login.plist"
-    login = plistlib.loads(agent.read_bytes())["ProgramArguments"]
-    agent.unlink()
+    login = login_entry()
     print("opens at login:", login)
+    if "--background" not in login:
+        raise SystemExit("opening at login wouldn't start the app in the background")
     if not login[0].endswith("/Dowse.app/Contents/MacOS/Dowse") and PROGRAM[0].endswith("/MacOS/Dowse"):
         raise SystemExit("opening at login wouldn't start Dowse.app")
 

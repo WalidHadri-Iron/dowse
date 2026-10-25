@@ -23,6 +23,10 @@ Everything the app and the command line do. The [README](../README.md) is the sh
     focused. Or use a list. The viewing table on the right shows the file where it matched: the PDF page with
     your words marked (or the page itself, readable in place), the video or recording playing from its moment, the
     document's passage.
+  - **Music tags.** Search a song's artist, title, album or genre even when its filename is just `track01.mp3`.
+    MP3, FLAC, M4A, Ogg and WAV metadata are read locally, without changing the music files. The explanation says
+    *Music tags contain…*, not that those words were heard in the sound. This also works with a text-only model.
+    Existing audio gains searchable tags on the next indexing pass without embedding its sound again.
   - **More like this.** *Similar* on any file (in Search, Quick search, Explore or the Library) finds the files most
     like it, of every kind, each at its part most like it; up close, *Like this page*, *passage* or *moment* searches
     with just that part. Its vectors are already in the index, so it's instant and needs no model. Drop a file on the
@@ -129,8 +133,8 @@ Choose during first-run setup, or later in **Settings → Search model**:
 
 - **EmbeddingGemma 2 · Q8** (recommended, about 865 MB): semantic search across text, pictures, sound and video.
 - **EmbeddingGemma 300M · Q4** (about 278 MB): [a smaller text-only model](https://huggingface.co/ggml-org/embeddinggemma-300M-qat-q4_0-GGUF).
-  Documents and PDF text have semantic search; photos, recordings and videos are searchable by filename, and
-  screenshots by their OCR words, not by their visual or audio content.
+  Documents and PDF text have semantic search; photos and videos are searchable by filename, recordings by music
+  tags and filename, and screenshots by their OCR words, not by their visual or audio content.
 
 Changing models requires confirmation. Dowse downloads and verifies the selected weights and checks the runtime
 before touching the index; preparation can be cancelled. It then rebuilds search data with the new model, keeping

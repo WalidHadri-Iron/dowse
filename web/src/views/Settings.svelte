@@ -7,6 +7,7 @@
   import { api, listen, type Kind, type ModelJob, type SearchModel } from "../lib/api";
   import { MAC, keyName, keyOf, modifiers } from "../lib/keys";
   import { KIND_PLURAL, dowse, size } from "../lib/app.svelte";
+  import { hasFileMenu, startupName, system, systemName, trayName } from "../lib/system";
   import type { IconName } from "../lib/icons";
   import Icon from "../components/Icon.svelte";
   import Toggle from "../components/Toggle.svelte";
@@ -219,26 +220,36 @@
     {#if section.id === "general"}
       <div class="card">
         <div class="row">
-          <span class="what"><b>Theme</b><span>Follow Windows, or always light or dark.</span></span>
+          <span class="what"><b>Theme</b><span>Follow {systemName()}, or always light or dark.</span></span>
           <Segmented label="Theme" value={settings.theme ?? "system"} disabled={themeBusy}
-                     options={[{ value: "system", label: "Follow Windows" }, { value: "light", label: "Light" }, { value: "dark", label: "Dark" }]}
+                     options={[{ value: "system", label: system() === "linux" ? "Follow the system" : `Follow ${systemName()}` }, { value: "light", label: "Light" }, { value: "dark", label: "Dark" }]}
                      onchange={changeTheme} />
         </div>
+        {#if system() === "linux"}
+          <div class="row">
+            <span class="what"><b>Shortcut</b><span>Linux doesn't let apps take a shortcut of their own: in your desktop's
+              keyboard settings, add one that runs this command. It opens Quick search.</span>
+              <code class="command">{dowse.state?.shortcutCommand}</code></span>
+          </div>
+        {:else}
+          <div class="row">
+            <span class="what"><b>Shortcut</b><span>Opens Quick search from any app.{#if hotkeyProblem} <em>{hotkeyProblem}.</em>{/if}</span></span>
+            <button class="keys" class:recording onclick={() => { recording = true; hotkeyProblem = ""; }} onkeydown={(e) => recording && record(e)}
+                    onblur={() => (recording = false)} title="Click, then press the new shortcut">
+              {#if recording}Press the new shortcut…{:else}{#each settings.hotkey.split("+") as key}<kbd>{keyName(key)}</kbd>{/each}{/if}
+            </button>
+          </div>
+        {/if}
         <div class="row">
-          <span class="what"><b>Shortcut</b><span>Opens Quick search from any app.{#if hotkeyProblem} <em>{hotkeyProblem}.</em>{/if}</span></span>
-          <button class="keys" class:recording onclick={() => { recording = true; hotkeyProblem = ""; }} onkeydown={(e) => recording && record(e)}
-                  onblur={() => (recording = false)} title="Click, then press the new shortcut">
-            {#if recording}Press the new shortcut…{:else}{#each settings.hotkey.split("+") as key}<kbd>{keyName(key)}</kbd>{/each}{/if}
-          </button>
+          <span class="what"><b>{startupName()}</b><span>Dowse waits in {trayName()} and keeps up with your files.</span></span>
+          <Toggle on={settings.startup} label={startupName()} onchange={(on) => change({ startup: on })} />
         </div>
-        <div class="row">
-          <span class="what"><b>Start with Windows</b><span>Dowse waits in the tray and keeps up with your files.</span></span>
-          <Toggle on={settings.startup} label="Start with Windows" onchange={(on) => change({ startup: on })} />
-        </div>
-        <div class="row">
-          <span class="what"><b>Explorer's right-click menu</b><span>Add, remove, find similar or search in a folder from Explorer. On Windows 11: Show more options.</span></span>
-          <Toggle on={settings.explorerMenu} label="Explorer's right-click menu" onchange={(on) => change({ explorerMenu: on })} />
-        </div>
+        {#if hasFileMenu()}
+          <div class="row">
+            <span class="what"><b>Explorer's right-click menu</b><span>Add, remove, find similar or search in a folder from Explorer. On Windows 11: Show more options.</span></span>
+            <Toggle on={settings.explorerMenu} label="Explorer's right-click menu" onchange={(on) => change({ explorerMenu: on })} />
+          </div>
+        {/if}
       </div>
       <p class="version data">Dowse {dowse.state?.version ?? ""}</p>
 
@@ -333,7 +344,9 @@
         <div class="row">
           <span class="what"><b>Encrypt the index</b><span>{settings.encryptionSupported
             ? "With your Windows sign-in, so a copy can't be read elsewhere. Dowse restarts to apply it."
-            : "Not on this edition of Windows; Device encryption or BitLocker protects the whole drive instead."}</span></span>
+            : { windows: "Not on this edition of Windows; Device encryption or BitLocker protects the whole drive instead.",
+                mac: "FileVault protects the whole drive instead (System Settings › Privacy & Security).",
+                linux: "Your disk's encryption (LUKS, chosen when Linux was installed) protects the whole drive instead." }[system()]}</span></span>
           {#if confirm === "encrypt"}
             <span class="inline"><button class="primary" onclick={() => change({ encrypt: !settings.encrypt })}>Restart Dowse</button><button class="quiet" onclick={() => (confirm = null)}>Cancel</button></span>
           {:else}
@@ -447,6 +460,9 @@
   .text:focus { border-color: var(--found); box-shadow: 0 0 0 3px var(--found-wash); }
   .keys { display: inline-flex; gap: 4px; padding: 4px; border-radius: var(--r-field); border: 1px solid var(--hairline); background: var(--floor); min-width: 120px; justify-content: center; font-size: var(--text-sm); }
   .keys.recording { border-color: var(--found); color: var(--found-ink); padding: 6px 12px; }
+  .command { font-family: var(--face-data); font-size: var(--text-sm); color: var(--ink); background: var(--floor);
+    border: 1px solid var(--hairline); border-radius: var(--r-field); padding: 6px 8px; user-select: all;
+    overflow-wrap: anywhere; max-width: 62ch; }
   kbd { padding: 3px 8px; border-radius: 4px; background: var(--tag); color: var(--tag-ink); font: 500 var(--text-xs) / 1.3 var(--face-data); }
 
   .model-note { margin: var(--s-3) 0; color: var(--ink-2); font-size: var(--text-sm); line-height: 1.5; }

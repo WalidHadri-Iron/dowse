@@ -3,6 +3,7 @@
   // letter, a recording). It's read for this only, never added. Only files: text dragged within the page is left alone.
 
   import { dowse } from "../lib/app.svelte";
+  import { fileManager, hasFileMenu } from "../lib/system";
   import Icon from "./Icon.svelte";
 
   let { ondrop, compact = false }: { ondrop: (file: File) => void; compact?: boolean } = $props();
@@ -36,7 +37,8 @@
     const entry = event.dataTransfer?.items[0]?.webkitGetAsEntry?.();
     const file = event.dataTransfer?.files[0];
     if (entry?.isDirectory || !file) {
-      dowse.error = "Drop a file to find what's like it. To search in a folder, right-click it in Explorer, then Dowse.";
+      dowse.error = "Drop a file to find what's like it." +
+        (hasFileMenu() ? ` To search in a folder, right-click it in ${fileManager()}, then Dowse.` : "");
       return;
     }
     ondrop(file);

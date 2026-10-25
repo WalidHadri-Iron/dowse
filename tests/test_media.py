@@ -12,13 +12,15 @@ from PIL import Image
 from dowse.extract import ExtractError, media
 
 
-def write_audio(path, seconds: float, rate: int = 44100, silent_from: float | None = None, codec="pcm_s16le"):
+def write_audio(path, seconds: float, rate: int = 44100, silent_from: float | None = None, codec="pcm_s16le",
+                metadata=None):
     """A tone whose pitch rises with time, so windows from different moments differ."""
     t = np.arange(int(seconds * rate)) / rate
     samples = (0.3 * np.sin(2 * np.pi * (300 + 5 * t) * t) * 32767).astype(np.int16)
     if silent_from is not None:
         samples[int(silent_from * rate):] = 0
     with av.open(str(path), "w") as container:
+        container.metadata.update(metadata or {})
         stream = container.add_stream(codec, rate=rate, layout="mono")
         for start in range(0, len(samples), 1024):
             frame = av.AudioFrame.from_ndarray(samples[None, start:start + 1024], format="s16", layout="mono")

@@ -123,6 +123,8 @@ export interface Entry {
 
 export interface AppState {
   version: string;
+  system: "windows" | "mac" | "linux";
+  shortcutCommand: string | null;   // Linux: what the desktop's own shortcut should run (Dowse has none of its own)
   setupNeeded: boolean;
   searchModel: SearchModel;
   device: { choice: string | null; onGpu: boolean; gpu: string | null };

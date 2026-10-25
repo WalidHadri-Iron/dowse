@@ -115,7 +115,8 @@ class Indexer:
         stays searchable until their new read is saved."""
         with self.store.transaction():
             return sum(self.store.db.execute(
-                "UPDATE files SET state = 'pending' WHERE kind = ? AND state IN ('done', 'partial') "
+                "UPDATE files SET state = 'pending' WHERE kind = ? AND state IN " +
+                ("('done', 'partial', 'skipped') " if kind is Kind.AUDIO else "('done', 'partial') ") +
                 "AND coalesce(json_extract(info, '$.reader'), 1) < ?", (kind.value, version)).rowcount
                 for kind, version in READERS.items())
 
@@ -351,7 +352,7 @@ class Indexer:
                                        vector if embedded else None, piece.loc, piece.loc_end, body=piece.body))
         current = self.store.file(file.id)
         info = (current.info if current else {}) | step.info
-        if step.keep and not segments:   # nothing to add: the file stays as it was read
+        if step.keep and not segments and step.position is None:   # a partial file must retain its resume point
             self.store.finish(file.id, "done", None, info)
             return "done", None
         if first and step.position is None and not segments:

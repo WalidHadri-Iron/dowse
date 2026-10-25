@@ -96,7 +96,7 @@ jobs:
           DOWSE_BACKEND=metal uv run pytest -q tests/test_reference.py
 
       - name: The Mac app, started as a person starts it
-        run: uv run python scripts/mac_smoke.py "$RUNNER_TEMP/mac-app"
+        run: uv run python scripts/app_smoke.py "$RUNNER_TEMP/mac-app"
 
       - name: Screenshots and logs
         if: always()
@@ -201,7 +201,7 @@ jobs:
           home="$RUNNER_TEMP/first-home"
           mkdir -p "$home"
           cp -R .dowse-home/Models "$home/"
-          DOWSE_HOME="$home" uv run python scripts/mac_smoke.py "$RUNNER_TEMP/mac-app" --app "$HOME/Applications/Dowse.app" --first-run
+          DOWSE_HOME="$home" uv run python scripts/app_smoke.py "$RUNNER_TEMP/mac-app" --app "$HOME/Applications/Dowse.app" --first-run
 
       - name: Screenshots and logs
         if: always()

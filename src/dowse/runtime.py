@@ -47,6 +47,11 @@ def _platform_assets() -> dict[str, list[str]]:
         # One build holds both: Metal on Apple Silicon, and the processor (`--device none`). An Intel Mac: the processor.
         build = f"llama-{TAG}-bin-macos-{'arm64' if platform.machine() == 'arm64' else 'x64'}.tar.gz"
         return {"cpu": [build], "metal": [build]} if platform.machine() == "arm64" else {"cpu": [build]}
+    if sys.platform.startswith("linux"):
+        # NVIDIA cards run on Vulkan too (llama.cpp's CUDA build for Linux needs a 600 MB runtime beside it)
+        arch = "arm64" if platform.machine() in ("aarch64", "arm64") else "x64"
+        return {"cpu": [f"llama-{TAG}-bin-ubuntu-{arch}.tar.gz"],
+                "vulkan": [f"llama-{TAG}-bin-ubuntu-vulkan-{arch}.tar.gz"]}
     return {
         "cpu": [f"llama-{TAG}-bin-win-cpu-x64.zip"],
         "vulkan": [f"llama-{TAG}-bin-win-vulkan-x64.zip"],
@@ -271,7 +276,9 @@ def _matching(name: str, dedicated: dict[str, int]) -> int | None:
 
 
 def _dedicated_memory() -> dict[str, int]:
-    """Each display adapter's dedicated memory in MiB, as Windows records it, by name."""
+    """Each display adapter's dedicated memory in MiB, as Windows records it (Linux: its drivers), by name."""
+    if sys.platform.startswith("linux"):
+        return _linux_cards()
     if sys.platform != "win32":
         return {}
     import winreg
@@ -297,6 +304,36 @@ def _dedicated_memory() -> dict[str, int]:
             continue
         size = int.from_bytes(raw, "little") if isinstance(raw, bytes) else int(raw)
         found[name] = max(found.get(name, 0), size >> 20)
+    return found
+
+
+def _linux_cards(drm: Path = Path("/sys/class/drm")) -> dict[str, int]:
+    """Linux's graphics cards with memory of their own: NVIDIA's from nvidia-smi (named as Vulkan names them), AMD's
+    from the amdgpu driver (its VRAM; an APU's is a small carve-out, under `MIN_DEDICATED_MB`)."""
+    found: dict[str, int] = {}
+    try:
+        out = subprocess.run(["nvidia-smi", "--query-gpu=name,memory.total", "--format=csv,noheader,nounits"],
+                             capture_output=True, text=True, timeout=10)
+        for line in out.stdout.splitlines():
+            name, _, memory = line.rpartition(",")
+            if name.strip() and memory.strip().isdigit():
+                found[name.strip()] = int(memory)
+    except (OSError, subprocess.TimeoutExpired):
+        pass
+    for card in sorted(drm.glob("card[0-9]*")):
+        vram = card / "device" / "mem_info_vram_total"
+        if "-" in card.name or not vram.exists():   # card0-DP-1: a connector, not a card
+            continue
+        try:
+            size = int(vram.read_text().strip()) >> 20
+        except (OSError, ValueError):
+            continue
+        name = f"AMD graphics ({card.name})"
+        try:
+            name = (card / "device" / "product_name").read_text().strip() or name
+        except OSError:
+            pass
+        found[name] = max(found.get(name, 0), size)
     return found
 
 
@@ -334,7 +371,7 @@ def best_gpu(found: list[Device]) -> Device | None:
 
 
 def choose(backend: str = "auto", device: str | None = None, progress: Progress | None = None) -> Choice:
-    """Picks (and installs) the backend. `auto`: the GPU backend (Vulkan on Windows, Metal on a Mac) on a GPU worth
+    """Picks (and installs) the backend. `auto`: the GPU backend (Vulkan; Metal on a Mac) on a GPU worth
     it, else the CPU (without fetching a GPU build at all when the system lists no card worth it)."""
     if backend == "cpu":
         install("cpu", progress)

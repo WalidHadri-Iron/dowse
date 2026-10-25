@@ -5,6 +5,8 @@
   import { onMount } from "svelte";
   import { api, listen, type SetupProgress, type SearchModel, type ModelJob } from "../lib/api";
   import { KIND_PLURAL, dowse, duration } from "../lib/app.svelte";
+  import { keyName } from "../lib/keys";
+  import { startupName, system, trayName } from "../lib/system";
   import Icon from "../components/Icon.svelte";
   import Toggle from "../components/Toggle.svelte";
   import ModelPicker from "../components/ModelPicker.svelte";
@@ -187,11 +189,16 @@
 
     {:else}
       <h1 class="sign">Search from anywhere</h1>
-      <p class="lede">Press <span class="keys">{#each (dowse.state?.settings.hotkey ?? "").split("+") as key}<kbd>{key}</kbd>{/each}</span>
-        in any app to open search. Change it any time in Settings.</p>
+      {#if system() === "linux"}
+        <p class="lede">Open Dowse from your apps, or give it a shortcut in your desktop's keyboard settings: Settings shows
+          the command it runs.</p>
+      {:else}
+        <p class="lede">Press <span class="keys">{#each (dowse.state?.settings.hotkey ?? "").split("+") as key}<kbd>{keyName(key)}</kbd>{/each}</span>
+          in any app to open search. Change it any time in Settings.</p>
+      {/if}
       <label class="startup">
-        <Toggle on={startup} label="Start with Windows" onchange={(on) => (startup = on)} />
-        <span class="what"><b>Start with Windows</b><span>Keeps your files searchable as they change, from the tray.</span></span>
+        <Toggle on={startup} label={startupName()} onchange={(on) => (startup = on)} />
+        <span class="what"><b>{startupName()}</b><span>Keeps your files searchable as they change, from {trayName()}.</span></span>
       </label>
       <div class="next">
         <button class="quiet" onclick={() => (step = 2)}>Back</button>

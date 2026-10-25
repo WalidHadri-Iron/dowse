@@ -21,7 +21,7 @@ import threading
 
 from .. import runtime
 from . import winapi
-from .brand import ICON, MENU_BAR_ICON
+from .brand import APP_PNG, ICON, MENU_BAR_ICON
 from .indexing import Status
 
 log = logging.getLogger("dowse.native")
@@ -51,6 +51,89 @@ def _menu_bar_icon(base):
             self._status_item.button().setImage_(image)
 
     return MenuBarIcon
+
+
+def _in_background(action) -> None:
+    threading.Thread(target=action, daemon=True).start()
+
+
+class QtTray:
+    """Linux's tray icon: Qt's, which speaks the tray protocol of today's desktops (StatusNotifierItem: KDE, GNOME
+    with the AppIndicator extension, Cinnamon, XFCE…) and the old X11 one. It answers the calls `Native` makes of a
+    pystray icon (`title`, `update_menu`, `notify`, `run`, `stop`), from any thread: each is done on Qt's."""
+
+    def __init__(self, entries: list, default):
+        from PySide6.QtGui import QAction, QGuiApplication, QIcon
+        from PySide6.QtWidgets import QApplication, QMenu, QSystemTrayIcon
+
+        QGuiApplication.setApplicationName("Dowse")
+        QGuiApplication.setDesktopFileName("dowse")
+        self.app = QApplication.instance() or QApplication(sys.argv[:1])
+        self.app.setQuitOnLastWindowClosed(False)   # (it has no windows: they're in their own process)
+        self.icon = QSystemTrayIcon(QIcon(str(APP_PNG)))
+        self.icon.setToolTip("Dowse")
+        self.menu = QMenu()
+        self._labels, self._checks = [], []
+        for entry in entries:
+            if entry is None:
+                self.menu.addSeparator()
+                continue
+            label, action, checked = entry
+            item = QAction(label() if callable(label) else label, self.menu)
+            if action is None:
+                item.setEnabled(False)
+            else:   # off Qt's thread, as pystray calls them: an action may wait on the window's process
+                item.triggered.connect(lambda _=False, action=action: _in_background(action))
+            if callable(label):
+                self._labels.append((item, label))
+            if checked:
+                item.setCheckable(True)
+                self._checks.append((item, checked))
+            self.menu.addAction(item)
+        self.menu.aboutToShow.connect(self._refresh)
+        self.icon.setContextMenu(self.menu)
+        clicks = (QSystemTrayIcon.ActivationReason.Trigger, QSystemTrayIcon.ActivationReason.DoubleClick)
+        self.icon.activated.connect(lambda reason: _in_background(default) if reason in clicks else None)
+        self._refresh()
+        self.icon.show()
+
+    def _later(self, apply) -> None:
+        from PySide6.QtCore import QTimer
+
+        QTimer.singleShot(0, self.app, apply)
+
+    def _refresh(self) -> None:
+        for item, label in self._labels:
+            item.setText(label())
+        for item, checked in self._checks:
+            item.setChecked(bool(checked()))
+
+    def available(self) -> bool:
+        from PySide6.QtWidgets import QSystemTrayIcon
+
+        return QSystemTrayIcon.isSystemTrayAvailable()
+
+    @property
+    def title(self) -> str:
+        return self.icon.toolTip()
+
+    @title.setter
+    def title(self, text: str) -> None:
+        self._later(lambda: self.icon.setToolTip(text))
+
+    def update_menu(self) -> None:
+        self._later(self._refresh)
+
+    def notify(self, message: str, title: str) -> None:
+        self._later(lambda: self.icon.showMessage(title, message))
+
+    def run(self, setup=None) -> None:
+        if setup is not None:
+            self._later(setup)
+        self.app.exec()
+
+    def stop(self) -> None:
+        self._later(self.app.quit)
 
 class Hotkey:
     """The global shortcut, on a thread with its own message queue."""
@@ -278,6 +361,8 @@ class Native:
         """Until Quit (on the main thread)."""
         if sys.platform == "darwin":
             return self._run_mac(show)
+        if sys.platform.startswith("linux"):
+            return self._run_linux(show)
         self.hotkey = Hotkey(self.app.settings["hotkey"], self.toggle_popup)
         self._tray()
         if not self.hotkey.registered():
@@ -314,23 +399,63 @@ class Native:
         self.tray.run(setup=started)
         self._quit.set()
 
+    def _run_linux(self, show: str | None) -> None:
+        """Qt owns the main thread: the tray icon's loop runs here until Quit. There's no global shortcut of Dowse's
+        own (Wayland doesn't let an app take one): the desktop's keyboard settings can run `dowse-app`, which opens
+        Quick search in the running app."""
+        self.tray = QtTray(self._entries(), self.show_popup)
+
+        def started() -> None:
+            if not self.tray.available():
+                self.notify("Dowse is running", "This desktop shows no tray icons: open Dowse from your apps.")
+            if show == "popup":
+                self.show_popup()
+            elif show:
+                self.show_main(show)
+
+        self.tray.run(setup=started)
+        self._quit.set()
+
+    def _entries(self) -> list:
+        """The tray's menu, for each system's tray to draw: (label, action, checked) or None between groups. The
+        first entry with an action is the icon's own (a click)."""
+        return [
+            (lambda: self._status.text, None, None),
+            None,
+            ("Quick search", lambda: self.show_popup(), None),
+            ("Workspace", lambda: self.show_main("/search"), None),
+            ("Library", lambda: self.show_main("/library"), None),
+            None,
+            ("Pause indexing", lambda: self.app.change_settings({"paused": not self._paused}), lambda: self._paused),
+            ("Settings", lambda: self.show_main("/settings"), None),
+            None,
+            ("Quit Dowse", lambda: self.quit(), None),
+        ]
+
     def _tray(self, start: bool = True) -> None:
         import pystray
         from PIL import Image
 
-        menu = pystray.Menu(
-            pystray.MenuItem(lambda _: self._status.text, None, enabled=False),
-            pystray.Menu.SEPARATOR,
-            pystray.MenuItem("Quick search", lambda: self.show_popup(), default=True),
-            pystray.MenuItem("Workspace", lambda: self.show_main("/search")),
-            pystray.MenuItem("Library", lambda: self.show_main("/library")),
-            pystray.Menu.SEPARATOR,
-            pystray.MenuItem("Pause indexing", lambda: self.app.change_settings({"paused": not self._paused}),
-                             checked=lambda _: self._paused),
-            pystray.MenuItem("Settings", lambda: self.show_main("/settings")),
-            pystray.Menu.SEPARATOR,
-            pystray.MenuItem("Quit Dowse", lambda: self.quit()),
-        )
+        def of_item(read):   # pystray calls a label or a check mark with the item (and counts the parameters)
+            return lambda _item: read()
+
+        def run(action):     # and an action with none
+            return lambda: action()
+
+        items, default = [], True
+        for entry in self._entries():
+            if entry is None:
+                items.append(pystray.Menu.SEPARATOR)
+                continue
+            label, action, checked = entry
+            text = of_item(label) if callable(label) else label
+            if action is None:
+                items.append(pystray.MenuItem(text, None, enabled=False))
+                continue
+            items.append(pystray.MenuItem(text, run(action), default=default,
+                                          checked=of_item(checked) if checked else None))
+            default = False
+        menu = pystray.Menu(*items)
         if sys.platform == "darwin":
             self.tray = _menu_bar_icon(pystray.Icon)("Dowse", Image.open(MENU_BAR_ICON), "Dowse", menu)
         else:
@@ -384,6 +509,10 @@ class Native:
             from . import macapi
             macapi.notify(title, message)
             return
+        if sys.platform.startswith("linux"):
+            from . import linuxapi
+            if linuxapi.notify(title, message):
+                return
         if self.tray is not None:
             try:
                 self.tray.notify(message, title)

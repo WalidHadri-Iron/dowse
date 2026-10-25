@@ -11,6 +11,7 @@ import json
 import logging
 import collections
 import os
+import sys
 import threading
 import time
 from datetime import datetime
@@ -32,6 +33,8 @@ from .indexing import Config, Indexing, Status
 from .pictures import VISUAL, Pictures
 from .screenshots import ScreenshotWatcher, folders as screenshot_folders
 from .server import Raw, Refused, Request, Server, Stream
+
+SYSTEM = {"win32": "windows", "darwin": "mac"}.get(sys.platform, "linux")   # for the interface's words
 
 log = logging.getLogger("dowse.app")
 OVERVIEW_PIXELS = 96   # the picture size Explore asks for when its whole floor is in view (MapFloor.loadVisible)
@@ -500,6 +503,9 @@ class App:
         gpu = self.gpu_name()
         return {
             "version": __version__,
+            "system": SYSTEM,
+            # Linux has no global shortcut of Dowse's own: the desktop's keyboard settings run this instead
+            "shortcutCommand": winapi.launch_command() if SYSTEM == "linux" else None,
             "setupNeeded": self.choice is None,
             "searchModel": self.model.json(),
             "device": {"choice": self.choice.describe() if self.choice else None,

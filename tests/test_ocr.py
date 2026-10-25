@@ -1,4 +1,5 @@
-"""The system's own OCR reads a screenshot's words (keyword search only): Vision on a Mac, Windows' OCR on Windows."""
+"""The system's own OCR reads a screenshot's words (keyword search only): Vision on a Mac, Windows' OCR on Windows,
+Tesseract on Linux."""
 
 import pytest
 from PIL import Image, ImageDraw, ImageFont
