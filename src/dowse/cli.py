@@ -7,7 +7,7 @@ import sys
 import time
 from pathlib import Path
 
-from . import catalog, migrate, modelfiles, paths, probes, runtime, settings
+from . import __version__, catalog, migrate, modelfiles, paths, probes, runtime, settings
 from .embedder import Embedder
 from .fmt import clock
 from .indexer import Indexer, Options
@@ -417,6 +417,7 @@ def main(argv: list[str] | None = None) -> None:
         sys.stdout.reconfigure(encoding="utf-8", errors="replace")
     migrate.run()   # before anything opens a file in the data folder
     parser = argparse.ArgumentParser(prog="dowse", description="Search your files by what's in them.")
+    parser.add_argument("--version", action="version", version=f"dowse {__version__}")
     commands = parser.add_subparsers(dest="command", required=True)
 
     setup = commands.add_parser("setup", help="download the model and the llama.cpp runtime for this PC")

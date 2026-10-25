@@ -12,7 +12,7 @@ Dependencies are managed with [uv](https://docs.astral.sh/uv/); everything runs 
 | `web/` | the interface: Svelte 5, TypeScript, three.js |
 | `tests/` | engine and app tests; `tests/reference/` holds the reference vectors every runtime must reproduce |
 | `evals/` | the ranking evaluation sets, run on the testbed (`scripts/make_testbed.py`, `scripts/hard_testbed.py`) |
-| `packaging/`, `scripts/build_installer.py`, `scripts/build_mac_app.py` | the Windows installer; Dowse.app and its disk image (`packaging/macos/`) |
+| `packaging/`, `scripts/build_installer.py`, `scripts/build_mac_app.py`, `scripts/build_linux_app.py` | the Windows installer; Dowse.app and its disk image (`packaging/macos/`); the Linux AppImage (`packaging/linux/`) |
 
 ## The interface
 
@@ -58,3 +58,8 @@ On a Mac (Apple Silicon, with Xcode's command line tools), `uv run python script
 locked dependencies inside the app, and a small program (`packaging/macos/launcher.c`) that embeds it, so macOS shows
 the app as Dowse. It's signed ad hoc unless `DOWSE_MAC_IDENTITY` names a Developer ID, and notarized when
 `DOWSE_NOTARY_PROFILE` names saved notary credentials (see the script's docstring).
+
+On Linux, `uv run python scripts/build_linux_app.py` builds `dist/Dowse-<version>-<arch>.AppImage` (glibc 2.34 or
+later): the same relocatable Python with Dowse and its locked dependencies, Qt trimmed to what the window loads, and
+`packaging/linux/AppRun` as its entry point (`Dowse.AppImage cli …` is the command line). Run from the AppImage, Dowse
+adds itself to the apps menu.

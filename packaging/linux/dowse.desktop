@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=Dowse
+Comment=Find files by what's in them
+Exec=dowse
+Icon=dowse
+Terminal=false
+Categories=Utility;FileTools;
+Keywords=search;find;files;photos;documents;
+StartupWMClass=dowse

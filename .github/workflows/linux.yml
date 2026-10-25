@@ -160,3 +160,84 @@ jobs:
           path: |
             ${{ runner.temp }}/linux-app
             ${{ runner.temp }}/first-home/Logs
+
+  # Dowse's AppImage (scripts/build_linux_app.py), built, then run as a person runs the file they downloaded (mounted
+  # with FUSE), from its first start: the same checks as the app above, plus its processes on the AppImage's own Python,
+  # opening at login pointing at the file (not where it's mounted this time), and Dowse in the apps menu.
+  appimage:
+    needs: test
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: "3.12"
+          enable-cache: true
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - name: The interface
+        working-directory: web
+        run: |
+          npm ci
+          npm run build
+
+      - name: The X11 libraries the AppImage carries, FUSE to run it, an X display, and Qt's needs to check it
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -yq libxcb-cursor0 libxcb-icccm4 libxcb-image0 libxcb-keysyms1 libxcb-render-util0 \
+            libxcb-util1 libxcb-xkb1 libxkbcommon-x11-0 fuse3 xvfb openbox imagemagick libegl1 libnss3 libasound2t64 \
+            libxcb-xinerama0 libxcb-shape0
+
+      - name: Cache the AppImage's downloads (its Python, appimagetool, the runtime) and the model (865 MB)
+        uses: actions/cache@v4
+        with:
+          path: |
+            build/cache
+            .dowse-home/Models
+          key: dowse-appimage-${{ hashFiles('scripts/build_linux_app.py', 'src/dowse/modelfiles.py') }}
+
+      - name: Dowse's AppImage
+        run: |
+          uv sync
+          uv run python scripts/build_linux_app.py
+          ls -la dist/
+
+      - name: The model
+        env:
+          DOWSE_HOME: ${{ github.workspace }}/.dowse-home
+        run: uv run python -c "from dowse import modelfiles; modelfiles.download()"
+
+      - name: The AppImage's first start, set up through its welcome
+        run: |
+          home="$RUNNER_TEMP/first-home"
+          mkdir -p "$home"
+          cp -R .dowse-home/Models "$home/"
+          export DISPLAY=:99
+          Xvfb :99 -screen 0 1280x800x24 &
+          sleep 2
+          openbox &
+          image="$(ls "$PWD"/dist/Dowse-*.AppImage)"
+          DOWSE_HOME="$home" uv run python scripts/app_smoke.py "$RUNNER_TEMP/appimage" --app "$image" --first-run
+          grep -q "Exec=$image" "$HOME/.local/share/applications/dowse.desktop"   # Dowse in the apps menu
+
+      - name: Screenshots and logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-appimage-run
+          path: |
+            ${{ runner.temp }}/appimage
+            ${{ runner.temp }}/first-home/Logs
+
+      - name: AppImage
+        uses: actions/upload-artifact@v4
+        with:
+          name: Dowse-linux
+          path: dist/*.AppImage

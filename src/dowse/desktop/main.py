@@ -39,6 +39,12 @@ def run(background: bool = False, pending: list[dict] = (), lock=None) -> int:
         return 1
     _logging()
     winapi.set_app_id(APP_ID)
+    if winapi.LINUX:
+        from . import linuxapi
+        try:
+            linuxapi.integrate()
+        except OSError:
+            log.warning("couldn't add Dowse to the apps menu", exc_info=True)
     from .app import App
     from .native import Native
 

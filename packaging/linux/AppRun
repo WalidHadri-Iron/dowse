@@ -1,0 +1,13 @@
+#!/bin/sh
+# Dowse.AppImage's entry point. Opened from the apps menu, at login, or as a file (no arguments, or Dowse's own:
+# --background, --library, --quit…), it runs the app; `Dowse.AppImage cli …` is the command line (`dowse setup`,
+# `dowse search "…"`). The Python inside is the app's own: the system's Python settings don't reach it.
+here="$(dirname "$(readlink -f "$0")")"
+unset PYTHONHOME PYTHONPATH
+export PYTHONNOUSERSITE=1 PYTHONDONTWRITEBYTECODE=1
+python="$here/usr/python/bin/python3"
+if [ "$1" = "cli" ]; then
+    shift
+    exec "$python" -m dowse.cli "$@"
+fi
+exec "$python" -m dowse.desktop.launch "$@"

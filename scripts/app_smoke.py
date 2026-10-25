@@ -117,10 +117,15 @@ def welcome(port: int, cookie: str) -> None:
         raise SystemExit("opening at login wouldn't start the app in the background")
     if not login[0].endswith("/Dowse.app/Contents/MacOS/Dowse") and PROGRAM[0].endswith("/MacOS/Dowse"):
         raise SystemExit("opening at login wouldn't start Dowse.app")
+    if PROGRAM[0].endswith(".AppImage") and login[0] != PROGRAM[0]:   # not the place it's mounted at this time
+        raise SystemExit("opening at login wouldn't start the AppImage")
 
 
 def program_of(pid: int) -> str:
-    return subprocess.run(["ps", "-o", "comm=", "-p", str(pid)], capture_output=True, text=True).stdout.strip()
+    """The program a process runs (a Mac's `comm` is its whole path; Linux's, only a name: the command's first word)."""
+    field = "comm=" if sys.platform == "darwin" else "args="
+    out = subprocess.run(["ps", "-o", field, "-p", str(pid)], capture_output=True, text=True).stdout.strip()
+    return out if sys.platform == "darwin" else (out.split() or [""])[0]
 
 
 def main() -> None:
@@ -131,8 +136,10 @@ def main() -> None:
     args = parser.parse_args()
     out = Path(args.out)
     sys.stdout.reconfigure(line_buffering=True)   # in order with what the app prints
-    if args.app:
-        PROGRAM[:] = [str(Path(args.app) / "Contents" / "MacOS" / "Dowse")]
+    if args.app:   # Dowse.app (its program), an AppDir (its AppRun), or the .AppImage itself
+        app = Path(args.app)
+        PROGRAM[:] = [str(app / "Contents" / "MacOS" / "Dowse") if app.suffix == ".app" else
+                      str(app / "AppRun") if app.is_dir() else str(app)]
     out.mkdir(parents=True, exist_ok=True)
     print("home:", paths.home())
     chosen = settings.load()
@@ -164,12 +171,14 @@ def main() -> None:
         launch("--library")                                             # the Library, in the same window
         time.sleep(6)
         shoot(out, "library")
-        if args.app:   # the app and its window: Dowse.app's own program (the menu reads Dowse), not a Python
+        if args.app:   # the app and its window run on the app's own program: Dowse.app's (the menu reads Dowse), or
+            # the AppImage's Python, not the system's
+            own = "/Dowse.app/Contents/MacOS/Dowse" if sys.platform == "darwin" else "/usr/python/bin/python3"
             window = subprocess.run(["pgrep", "-f", "dowse.desktop.windows"], capture_output=True, text=True).stdout.split()
             names = [program_of(state["pid"])] + [program_of(int(pid)) for pid in window]
             print("programs:", names)
-            if len(names) < 2 or not all(n.endswith("/Dowse.app/Contents/MacOS/Dowse") for n in names):
-                raise SystemExit("the app's processes aren't Dowse.app's own program")
+            if len(names) < 2 or not all(n.endswith(own) for n in names):
+                raise SystemExit("the app's processes aren't the app's own program")
     except BaseException:   # whatever failed, the app (and its model servers) end with the test
         launch("--quit", wait=False).wait(60)
         raise

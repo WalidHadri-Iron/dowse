@@ -107,6 +107,8 @@ APP_EXE = "Dowse.exe"   # the installed app's own program (its Python, named and
 def launcher() -> tuple[str, list[str]]:
     """How to start this app again, as (program, arguments): the installed app's Dowse.exe; a launcher it was started
     by (`dowse-app.exe` in a development venv); else pythonw (no console window) with the module."""
+    if LINUX and os.environ.get("APPIMAGE"):   # the AppImage file itself (its own files' place changes each run)
+        return os.environ["APPIMAGE"], []
     folder = os.path.dirname(sys.executable)
     # The installed app: Dowse.exe beside the embeddable Python, which its ._pth file marks (a venv's dowse.exe is the
     # command line, and Windows' names ignore case)

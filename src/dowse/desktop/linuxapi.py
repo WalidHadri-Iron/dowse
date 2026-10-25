@@ -75,10 +75,42 @@ def set_starts_at_login(enabled: bool, program: str, arguments: list[str]) -> No
         entry.unlink(missing_ok=True)
         return
     entry.parent.mkdir(parents=True, exist_ok=True)
-    command = " ".join(_quoted(a) for a in [program, *arguments, "--background"])
-    entry.write_text("[Desktop Entry]\nType=Application\nName=Dowse\nComment=Find files by what's in them\n"
-                     f"Exec={command}\nIcon={APP_PNG}\nTerminal=false\nX-GNOME-Autostart-enabled=true\n",
+    entry.write_text(_desktop_entry([program, *arguments, "--background"]) + "X-GNOME-Autostart-enabled=true\n",
                      encoding="utf-8")
+
+
+def _data() -> Path:
+    return Path(os.environ.get("XDG_DATA_HOME") or Path.home() / ".local" / "share")
+
+
+def _icon() -> Path:
+    """Dowse's icon where the desktop can always find it: the copy in the user's icons once there (an AppImage's own
+    files are only there while it runs), else the package's."""
+    installed = _data() / "icons" / "hicolor" / "256x256" / "apps" / "dowse.png"
+    return installed if installed.exists() else APP_PNG
+
+
+def _desktop_entry(command: list[str]) -> str:
+    return ("[Desktop Entry]\nType=Application\nName=Dowse\nComment=Find files by what's in them\n"
+            f"Exec={' '.join(_quoted(a) for a in command)}\nIcon={_icon()}\nTerminal=false\n"
+            "Categories=Utility;FileTools;\nKeywords=search;find;files;photos;documents;\nStartupWMClass=dowse\n")
+
+
+def integrate() -> None:
+    """Run from an AppImage (`$APPIMAGE`, the file itself; the app's own files are mounted somewhere new each time):
+    Dowse in the apps menu, which an AppImage doesn't do for itself and where Dowse is found again when the desktop
+    shows no tray icons; its icon beside it; and opening at login following the file if it was moved."""
+    image = os.environ.get("APPIMAGE")
+    if not image or not os.path.isfile(image):
+        return
+    icon = _data() / "icons" / "hicolor" / "256x256" / "apps" / "dowse.png"
+    icon.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copyfile(APP_PNG, icon)
+    entry = _data() / "applications" / "dowse.desktop"
+    entry.parent.mkdir(parents=True, exist_ok=True)
+    entry.write_text(_desktop_entry([image]), encoding="utf-8")
+    if starts_at_login():
+        set_starts_at_login(True, image, [])
 
 
 # Opening a file where it matched
@@ -261,8 +293,8 @@ def known_folder(name: str) -> str:
             key, _, value = line.partition("=")
             if key.strip() == f"XDG_{_XDG_NAMES[name]}_DIR":
                 folder = value.strip().strip('"').replace("$HOME", home)
-                if folder and folder != home:
-                    return folder
+                if folder and os.path.normpath(folder) != os.path.normpath(home):   # "$HOME/": none set
+                    return os.path.normpath(folder)
     except OSError:
         pass
     return os.path.join(home, name)

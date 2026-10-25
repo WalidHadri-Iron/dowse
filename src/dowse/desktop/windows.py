@@ -19,6 +19,13 @@ import time
 
 if sys.platform.startswith("linux"):
     os.environ.setdefault("QT_API", "pyside6")   # pywebview's Qt backend, through QtPy: PySide6 (LGPL)
+    # Ubuntu 24.04 and later keep apps without an AppArmor profile of their own out of user namespaces, which Qt
+    # WebEngine's (Chromium's) sandbox needs: there it would refuse to start. The page is Dowse's own interface, from
+    # 127.0.0.1, so it runs without that sandbox where the system allows none.
+    with contextlib.suppress(OSError):
+        with open("/proc/sys/kernel/apparmor_restrict_unprivileged_userns") as restricted:
+            if restricted.read().strip() == "1":
+                os.environ.setdefault("QTWEBENGINE_DISABLE_SANDBOX", "1")
 
 import webview
 
