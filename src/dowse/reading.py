@@ -18,14 +18,14 @@ from pathlib import PurePath
 from . import searchtext
 from .fmt import clock
 from .embedder import Prompts, audio_part, image_part
-from .extract import ExtractError, docs, images, media, ocr, pdf
+from .extract import ExtractError, docs, images, media, music_tags, ocr, pdf
 from .rules import NOTHING, Kind, Skip
 from .store import FileRow, Modality, Segment
 
 # What reading a kind keeps, by version: when it changes, files read before are read again (what they hold stays
 # searchable until their new read is saved). 2: photos' words (OCR); documents and PDFs titled by their name when
-# they have no title of their own.
-READERS = {Kind.IMAGE: 2, Kind.PDF: 2, Kind.DOC: 2}
+# they have no title of their own. Audio 3: music tags; old sound vectors are kept during this metadata-only upgrade.
+READERS = {Kind.IMAGE: 2, Kind.PDF: 2, Kind.DOC: 2, Kind.AUDIO: 3}
 
 # Words of file names that say nothing about what's in the file
 GENERIC = frozenset("img dsc dscn pxl vid mvimg scan doc docs document documents untitled new copy file files image "
@@ -114,7 +114,16 @@ def _steps(file: FileRow, options: Options, start: float) -> Iterator[Step]:
     if file.kind is Kind.IMAGE and options.embed_media and file.info.get("width") and \
             file.info.get("reader", 1) < 2:   # a photo read before its words were: just its words
         yield _photo_words_only(file, options)
-    elif not options.embed_media and file.kind in (Kind.IMAGE, Kind.AUDIO, Kind.VIDEO):
+    elif file.kind is Kind.AUDIO and options.embed_media and "duration" in file.info and \
+            file.info.get("reader", 1) < READERS[Kind.AUDIO]:
+        tags, info = _music_tags(file.path)
+        # Preserve a long recording's resume point, including when it has no tags at all.
+        yield Step(_tag_pieces(tags), file.info.get("read_to"), info, keep=True)
+    elif not options.embed_media and file.kind is Kind.AUDIO:
+        tags, info = _music_tags(file.path)
+        yield Step(_tag_pieces(tags), None, info,
+                   "This text-only model searches music tags and filenames, not sound", keyword_only=True)
+    elif not options.embed_media and file.kind in (Kind.IMAGE, Kind.VIDEO):
         yield Step([], None, {}, "This text-only model searches this file by its name, not its contents", keyword_only=True)
     elif file.kind in (Kind.IMAGE, Kind.SCREENSHOT):
         yield _picture(file, options)
@@ -245,17 +254,39 @@ def _span(start: float, stop: float, duration: float) -> str:
     return f"{clock(start)}–{clock(stop)} of {clock(duration)}"
 
 
+def _tag_pieces(tags: dict[str, str]) -> list[Piece]:
+    """One untimed, keyword-only segment; never attach a song title to an audio window."""
+    return [Piece(Segment.TAG, body=" ".join(tags.values()))] if tags else []
+
+
+def _music_tags(path: str) -> tuple[dict[str, str], dict]:
+    """One format-neutral source of untimed keyword evidence; never pass tag text to the embedding model."""
+    tags = music_tags.read(path)
+    return tags, {"music_tags": tags}
+
+
 def _recording(file: FileRow, options: Options, start: float) -> Iterator[Step]:
-    with media.open_media(file.path) as container:
-        duration = media.duration_of(container)
+    # Read tags only on the first step; resumed recordings retain the first step's
+    # metadata and keyword segment. Audio decoding is independent of tag parsing.
+    tags, tag_info = _music_tags(file.path) if start == 0 else ({}, {})
+    try:
+        with media.open_media(file.path) as container:
+            duration = media.duration_of(container)
+    except ExtractError as error:
+        if not tags:
+            raise
+        yield Step(_tag_pieces(tags), None, tag_info, f"Music tags only: {error}", keyword_only=True)
+        return
     windows = _Peekable(media.sound(file.path, start, options.audio_window, options.audio_hop))
-    info = {"duration": round(duration, 1)}
+    info = {"duration": round(duration, 1)} | tag_info
+    tag_pieces = _tag_pieces(tags)
     if windows.peek() is None:
-        yield Step([], None, info, "silent or shorter than 2 s" if start == 0 else None)
+        yield Step(tag_pieces, None, info, "silent or shorter than 2 s" if start == 0 else None)
         return
     while windows.peek() is not None:
         stop = start + options.media_step
-        pieces = _sound_pieces(_windows_until(windows, stop))
+        pieces = tag_pieces + _sound_pieces(_windows_until(windows, stop))
+        tag_pieces = []
         more = windows.peek() is not None
         yield Step(pieces, stop if more else None, info,
                    _span(start, stop, duration) if more or start else None)

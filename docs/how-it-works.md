@@ -26,6 +26,15 @@ your words   ─► the same model (text part only, ~310 MB) ─► z-scored cos
   match points to its moment. Silent windows are skipped. Video decodes only keyframes (94 s of 1440p60 in 1.7 s)
   and seeks into gaps longer than 15 s, so a screen recording with one keyframe a minute still gets a frame every
   few seconds. One frame per shot is kept (8×8 average hash).
+- **Music tags.** `extract/music_tags.py` reads title, artist, album, album artist, track, date/year and genre from
+  audio metadata through TinyTag (MIT, read-only). Values are saved as `music_tags` file info and indexed as one untimed keyword-only segment, even with a
+  text-only model or when a song is too short/silent to embed. "Why this result?" attributes matching words to
+  **Music tags**, not to a transcript of the sound. Metadata reads are capped at 1 MiB and 8,192 I/O operations;
+  kept values at 256 characters. Cover art is skipped by seeking, so a large cover doesn't discard small text tags.
+  Missing, broken or over-budget metadata doesn't prevent sound indexing. Multiple artists are joined. The same
+  reader handles MP3, FLAC, M4A, Ogg and WAV metadata. Audio reader version 3 adds tags to already indexed recordings
+  without decoding/embedding their sound again, preserving the resume point of unfinished recordings. Tag candidates
+  supplement, never replace, the usual keyword candidates; scores use the same rules as other text, without a music boost.
 - **Long files, a step at a time.** A PDF over 50 pages is read 30 pages at a time, a document 40 passages at a
   time, a recording or video 10 minutes at a time (5 on a CPU). The first pass reads every waiting file's first step,
   so everything is searchable soon; the later pass reads the rest. Every step is saved in one transaction with

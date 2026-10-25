@@ -66,6 +66,13 @@ others instead, through Student's t (`apart`, under `SMALL` vectors), found and 
 2 files 0.457 → 0.530, 3 files 0.484 → 0.571, 4 files 0.562 → 0.825, 6 files 0.847 → 0.909, 10 files 0.920 → 0.936;
 false alarms 0 of 40 either way; from 20 files (~250 vectors) the same. The testbed (812 vectors) is unchanged.
 
+Music metadata (2026-10-25, 160 queries; the CPU-read testbed's 811 vectors, then among a copied mixed library,
+6,200 vectors): before/after R@1 0.954/0.954 and 0.763/0.763; MRR 0.971/0.971 and 0.839/0.839; false alarms
+1/8 and 7/8, unchanged. Old audio gained keyword-only tags without changing any saved sound vectors. Tag candidates
+supplement the usual 100 keyword files with up to 100 more; neither pool gets a metadata score bonus. Mixed-library
+tests also retain a full document match among 150 partial music matches, and an artist's tags among 120 folder-name
+matches. Metadata field labels are not indexed as if they were words in the file.
+
 More like this (`like`): a file, or a place in it, as the query. Its vectors are already here, so nothing is read or
 embedded. A file with several (a PDF's pages, a video's frames and sound) is searched with each of them, up to
 `LIKE_VECTORS`, and every vector keeps the best z any of them gave it: a file is like another when some part of one
@@ -342,6 +349,9 @@ class Searcher:
         self.row_hub = self._hubness()
         self.segment_count = self.store.db.execute(
             "SELECT COUNT(*) FROM segments s JOIN files f ON f.id = s.file WHERE f.active = 1").fetchone()[0]
+        self.has_tags = self.store.db.execute(
+            "SELECT 1 FROM segments s JOIN files f ON f.id = s.file WHERE s.kind = 'tag' AND f.active = 1 LIMIT 1"
+        ).fetchone() is not None
         # When each file is from, for dates in queries: a photo's taking, or else the file's last change
         self.file_time = {file: _taken(taken) or mtime for file, mtime, taken in self.store.db.execute(
             "SELECT id, mtime, json_extract(info, '$.taken') FROM files WHERE active = 1")}
@@ -551,14 +561,21 @@ class Searcher:
                     and (spellings := self._spelled(term)):
                 patterns[index] = "(" + " OR ".join([patterns[index], *(f'"{w}"' for w in spellings)]) + ")"
         words: dict[int, _Words] = {}
-        for file, segment in self.store.db.execute(
-                "SELECT s.file, s.id FROM fts JOIN segments s ON s.id = fts.rowid JOIN files f ON f.id = s.file "
-                "WHERE fts MATCH ? AND f.active = 1 ORDER BY bm25(fts, 3.0, 1.0)" + ("" if filtered else " LIMIT 1000"),
-                (" OR ".join(patterns),)):
-            if len(words) >= 100:
-                break
-            if file not in words and allowed(file):
-                words[file] = _Words(len(words) + 1, segment)
+        # Keep the normal candidate pool intact. Additionally retrieve bounded tag candidates so an artist's
+        # folder containing hundreds of tracks cannot drown out the same artist in metadata. Neither candidate
+        # source receives a score bonus; the existing coverage/rarity/meaning rules rank their union.
+        for tags_only in ([False, True] if self.has_tags else [False]):
+            accepted = 0
+            for file, segment in self.store.db.execute(
+                    "SELECT s.file, s.id FROM fts JOIN segments s ON s.id = fts.rowid JOIN files f ON f.id = s.file "
+                    "WHERE fts MATCH ? AND f.active = 1 " + ("AND s.kind = 'tag' " if tags_only else "") +
+                    "ORDER BY bm25(fts, 3.0, 1.0)" + ("" if filtered else " LIMIT 1000"),
+                    (" OR ".join(patterns),)):
+                if accepted >= 100:
+                    break
+                if file not in words and allowed(file):
+                    words[file] = _Words(len(words) + 1, segment)
+                    accepted += 1
         if not words:
             return words
 
@@ -604,6 +621,9 @@ class Searcher:
             sources = {hit.segment_id}
             if hit.segment == "image":
                 sources.add(keyword.segment)
+            if self.has_tags and self.store.db.execute(
+                    "SELECT kind FROM segments WHERE id = ?", (keyword.segment,)).fetchone() == ("tag",):
+                sources.add(keyword.segment)   # an audio vector may win, but its matching music tags are still evidence
             rows = self.store.db.execute(
                 "SELECT s.id, s.kind, s.loc, s.loc_end, highlight(fts, 0, '«', '»'), "
                 "highlight(fts, 1, '«', '»') FROM fts JOIN segments s ON s.id = fts.rowid "
@@ -626,7 +646,7 @@ class Searcher:
                                     "loc": loc, "locEnd": end, "segment": segment})
                     words = re.findall("«(.*?)»", body or "")
                     if words:
-                        out.append({"source": "ocr" if kind == "ocr" else "text",
+                        out.append({"source": "ocr" if kind == "ocr" else "tag" if kind == "tag" else "text",
                                     "words": list(dict.fromkeys(words)), "loc": loc, "locEnd": end,
                                     "segment": segment})
         if semantic:

@@ -12,6 +12,7 @@ dependencies = [
     "pypdfium2>=4.30",
     "httpx>=0.28",
     "av>=14.0",          # FFmpeg (bundled): audio and video
+    "tinytag>=2.3.1,<3",  # read-only audio tags, MIT; artwork and duration reading disabled
     "pywebview>=5.4",            # the app's windows: Windows' own Edge WebView2, no browser bundled
     "pystray>=0.19; sys_platform != 'linux'",   # the tray icon (Linux: Qt's, below)
     "PySide6-WebEngine>=6.12; sys_platform == 'linux'",   # Linux's window (Qt WebEngine, behind pywebview), tray
